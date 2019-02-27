@@ -1,6 +1,7 @@
 import rospy
 import random as rand
 import math
+from keyboard import RoboKeyboardControl
 
 # Twist object used for pushing to nav node
 from geometry_msgs.msg import Twist
@@ -35,6 +36,9 @@ random_turn_inhibitor = False
 # Bump variables
 # bump_turn_steps = 0
 bump_handler = None
+
+# Keyboard variables
+keys = None
 
 # Laser variables
 laser_min_distance = 0.50  # Distance that indicates object is immediately in front of robot
@@ -145,6 +149,8 @@ def set_vel(x=0.0, y=0.0, z=0.0, ax=0.0, ay=0.0, az=0.0):
 # Async bump handler - handle bumps
 def handle_that_bump(bump):
 	global bump_inhibitor, bump_handler
+	if debug:
+		print "bumped"
 	# 1 = front, 2 = right, 0 = left
 	# Note: no back bumper
 	if bump.state == BumperEvent.PRESSED:
@@ -179,9 +185,11 @@ def do_bump():
 
 def do_keys():
 	# Get keyboard input
+	key = keys.key
+	print('Doing what the human says: ', key)
+	linear_vel, angular_vel = keys.moveBindings[key];
 	# Move robot
-	print 'Doing what the human says'
-
+	set_vel(x = default_forward_velocity * linear_vel, az = default_a_velocity * angular_vel)
 
 def do_obstacle_avoid():
 	global obstacle_handler
@@ -197,9 +205,8 @@ def do_random_turn():
 
 
 def go_forward():
-	if vel_msg.linear.x != default_forward_velocity:
-		print 'Going forward'
-		set_vel(x=default_forward_velocity)
+	print 'Going forward'
+	set_vel(x=default_forward_velocity)
 
 
 # All bot logic goes here
@@ -209,7 +216,7 @@ def do_bot_logic():
 	if bump_inhibitor:
 		# Do bumped logic
 		do_bump()
-	elif keyboard_inhibitor:
+	elif keys.hasKey(): # poll for keyboard input
 		# Do key input
 		do_keys()
 	elif obstacle_inhibitor:
@@ -227,12 +234,15 @@ def do_bot_logic():
 
 # Maintains the "alive" status of the robot
 def start_bot():
-	global kill
+	global kill, keys
 	# Init subscribers
 	rospy.Subscriber('mobile_base/events/bumper', BumperEvent, handle_that_bump)
 	rospy.Subscriber('/scan', LaserScan, handle_that_laser)
 	# Init node
 	rospy.init_node('rip_opportunity_rover', anonymous=True)
+	# Init keyboard
+	keys = RoboKeyboardControl()
+
 	# Keep program alive
 	while not rospy.is_shutdown() and not kill:
 		print "Time=%s" % str(rospy.Time.now())
