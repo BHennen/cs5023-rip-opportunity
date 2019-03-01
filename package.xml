@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <package format="2">
-  <name>cs5023-rip-opportunity</name>
-  <version>0.0.0</version>
+  <name>cs5023_rip_opportunity</name>
+  <version>0.1.0</version>
   <description>CS 5023 - Project 1</description>
 
   <maintainer email="cameronbost@ou.edu">Cameron Bost</maintainer>
