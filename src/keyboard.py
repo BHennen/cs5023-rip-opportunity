@@ -1,4 +1,4 @@
-#code heavily borrowed from turtlebot_teleop_key.py
+# code heavily borrowed from turtlebot_teleop_key.py:
 
 # Copyright (c) 2011, Willow Garage, Inc.
 # All rights reserved.
@@ -60,9 +60,3 @@ class RoboKeyboardControl:
     def hasKey(self):
         self.key = self.getKey()
         return self.key in self.moveBindings.keys()
-
-
-
-
-
-

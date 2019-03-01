@@ -16,7 +16,9 @@ from sensor_msgs.msg import LaserScan
 from nav_msgs.msg import Odometry
 
 # Create publisher to turtlebot nav (queue_size determined arbitrarily)
-nav_pub = rospy.Publisher('mobile_base/commands/velocity', Twist, queue_size=10)
+nav_pub = rospy.Publisher('mobile_base/commands/velocity',
+                          Twist,
+                          queue_size = 10)
 
 # Global twist object
 vel_msg = Twist()
@@ -41,7 +43,8 @@ random_turn_inhibitor = False
 keys = None
 
 # Laser variables
-laser_min_distance = 0.50  # Distance that indicates object is immediately in front of robot
+# Distance that indicates object is immediately in front of robot
+laser_min_distance = 0.50
 laser_danger_distance = 0.75
 obstacle_handler = None
 
@@ -55,10 +58,6 @@ prev_pos = None
 kill = False
 debug = True
 
-
-################
-# Bump Handler #
-################
 
 
 class ObstacleHandler:
@@ -90,7 +89,8 @@ class ObstacleHandler:
             t1 = rospy.Time.now().to_sec()
             self.current_angle = default_a_velocity * (t1 - self.t0)
             if debug:
-                print "Rotated %f deg" % math.degrees(self.current_angle)*self.turn_direction
+                print "Rotated %f deg" % math.degrees(self.current_angle) \
+                                         * self.turn_direction
         else:
             escape_inhibitor = False
             set_vel()  # reset vel
@@ -126,7 +126,8 @@ class RandomTurnHandler:
             t1 = rospy.Time.now().to_sec()
             self.current_angle = default_a_velocity * (t1 - self.t0)
             if debug:
-                print "Rotated %f rads" % math.degrees(self.current_angle)*self.turn_direction
+                print "Rotated %f rads" % math.degrees(self.current_angle) \
+                                          * self.turn_direction
         else:
             random_turn_inhibitor = False
             set_vel()  # reset vel
@@ -168,7 +169,9 @@ def handle_that_laser(scan):
     if escape_inhibitor:
         return
     # Separate laser scan into thirds, determine if object is to left, right, or in front
-    ranges = [min(scan.ranges[0:219]), min(scan.ranges[220:430]), min(scan.ranges[431:])]
+    ranges = [min(scan.ranges[0:219]),
+              min(scan.ranges[220:430]),
+              min(scan.ranges[431:])]
     if debug:
         print_out = 'Ranges: \tleft = ' + str(ranges[0]) \
                     + "\n\t\tmiddle = " + str(ranges[1]) \
@@ -182,7 +185,8 @@ def handle_that_laser(scan):
     if obstacle_left and obstacle_right:
         # symmetric obstacle
         escape_inhibitor = True
-        avoid_inhibitor = False  # reset avoid inhibitor in case symmetric obstacle detected while avoiding
+        # reset avoid inhibitor in case symmetric obstacle detected while avoiding
+        avoid_inhibitor = False
         obstacle_handler.start(ranges)
     elif obstacle_center or obstacle_left or obstacle_right:
         # asymmetric obstacle
@@ -222,7 +226,8 @@ def do_bump():
     if keys.hasKey():
         if keys.key == 'x':
             linear_vel, angular_vel = keys.moveBindings[keys.key]
-            set_vel(x=default_forward_velocity * linear_vel, az=default_a_velocity * angular_vel)
+            set_vel(x = default_forward_velocity * linear_vel,
+                    az = default_a_velocity * angular_vel)
             bump_inhibitor = False
 
 
@@ -232,7 +237,8 @@ def do_keys():
     print 'Doing what the human says: ' + str(key)
     linear_vel, angular_vel = keys.moveBindings[key]
     # Move robot
-    set_vel(x=default_forward_velocity * linear_vel, az=default_a_velocity * angular_vel)
+    set_vel(x = default_forward_velocity * linear_vel,
+            az = default_a_velocity * angular_vel)
 
 
 def do_escape_obstacle():
@@ -288,16 +294,13 @@ def do_bot_logic():
     nav_pub.publish(vel_msg)
 
 
-# time_now = rospy.Time.now().to_sec()
-# if (time_now - start_time > 1):
-# 	exit()
-
-
 # Maintains the "alive" status of the robot
 def start_bot():
     global kill, keys, obstacle_handler, random_turn_handler, start_time
     # Init subscribers
-    rospy.Subscriber('mobile_base/events/bumper', BumperEvent, handle_that_bump)
+    rospy.Subscriber('mobile_base/events/bumper',
+                     BumperEvent,
+                     handle_that_bump)
     rospy.Subscriber('/scan', LaserScan, handle_that_laser)
     rospy.Subscriber('/odom', Odometry, handle_that_odom)
     # Init node
