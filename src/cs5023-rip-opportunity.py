@@ -62,11 +62,13 @@ debug = True
 
 
 class TurnHandler:
-    def init(self, 
-             linear_velocity = 0, # Default turn has no forward component
-             angular_velocity = default_a_velocity):
+    def __init__(self, linear_velocity=0, angular_velocity=default_a_velocity):
         self.linear_velocity = linear_velocity
         self.angular_velocity = angular_velocity
+        self.t0 = None
+        self.current_angle = None
+        self.turn_direction = None
+        self.turn_rads = None
 
     # Record current time and set velocity to begin the turn
     def start_turn(self, turn_rads, linear_velocity=None, angular_velocity=None):
@@ -93,7 +95,7 @@ class TurnHandler:
         if self.current_angle < self.turn_rads: 
             # Set velocity to continue turn
             set_vel(x=self.linear_velocity,
-                    az=self.angular_velocity)
+                    az=self.angular_velocity*self.turn_direction)
 
             # Integrate angular velocity based on the time since we started turning to determine angle
             t1 = rospy.Time.now().to_sec()
@@ -151,7 +153,7 @@ class RandomTurnHandler:
 
     def __init__(self, min_degs=random_turn_min_degs, max_degs=random_turn_max_degs):
         """Creates a RandomTurnHandler that is initialized to turn between specified the degrees.
-
+stop_turn
         Args:
             min_degs (optional): The minimum amount the robot should turn (can be negative).
             max_degs (optional): The maximum amount the robot should turn (can be negative).
@@ -189,7 +191,7 @@ class RandomTurnHandler:
         
         turn_degs = rand.randint(self.min_degs, self.max_degs)
         turn_rads = math.radians(turn_degs)
-        print 'Random turn from (%f to %f) deg will be: %f' % self.min_degs, self.max_degs, turn_degs
+        print 'Random turn from (%f to %f) deg will be: %f' % (self.min_degs, self.max_degs, turn_degs)
         turn_handler.start_turn(turn_rads)
 
         if debug:
@@ -238,7 +240,7 @@ def handle_that_bump(bump):
 # Async laser handler - handles lasers
 def handle_that_laser(scan):
     global kill, escape_inhibitor, avoid_inhibitor, obstacle_handler
-    if escape_inhibitor:
+    if escape_inhibitor or obstacle_handler is None:
         return
     # Separate laser scan into thirds, determine if object is to left, right, or in front
     ranges = [min(scan.ranges[0:219]),
@@ -273,6 +275,8 @@ def handle_that_laser(scan):
 # Async odom handler - handles the odom
 def handle_that_odom(odom):
     global prev_pos, random_turn_inhibitor, random_turn_handler
+    if random_turn_handler is None:
+        return
     pose = odom.pose.pose
     curr_pos = pose.position
     if prev_pos is None:
@@ -365,7 +369,7 @@ def do_bot_logic():
 
 # Maintains the "alive" status of the robot
 def start_bot():
-    global kill, keys, obstacle_handler, random_turn_handler, start_time
+    global kill, keys, obstacle_handler, random_turn_handler, turn_handler
     # Init subscribers
     rospy.Subscriber('mobile_base/events/bumper',
                      BumperEvent,
@@ -374,7 +378,6 @@ def start_bot():
     rospy.Subscriber('/odom', Odometry, handle_that_odom)
     # Init node
     rospy.init_node('rip_opportunity_rover', anonymous=True)
-    start_time = rospy.Time.now().to_sec()
     # Init keyboard
     keys = RoboKeyboardControl()
     turn_handler = TurnHandler()
