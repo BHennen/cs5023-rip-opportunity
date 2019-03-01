@@ -62,7 +62,16 @@ debug = True
 
 
 class TurnHandler:
+    """Handles the turning of the robot for a specified amount """
+
     def __init__(self, linear_velocity=0, angular_velocity=default_a_velocity):
+        """Creates a TurnHandler which has specified velocities.
+        
+        Args:
+            linear_velocity: The desired linear velocity that will be applied while turning.
+            angular_velocity: The desired angular velocity that will be applied while turning.
+
+        """
         self.linear_velocity = linear_velocity
         self.angular_velocity = angular_velocity
         self.t0 = None
@@ -72,6 +81,19 @@ class TurnHandler:
 
     # Record current time and set velocity to begin the turn
     def start_turn(self, turn_rads, linear_velocity=None, angular_velocity=None):
+        """Starts a turn which will proceed until the given angle has been reached.
+        
+        Args:
+            turn_rads: The desired angle at which the robot will turn to.
+            linear_velocity: The desired linear velocity that will be applied while turning.
+            angular_velocity: The desired angular velocity that will be applied while turning.
+
+        Notes:
+            Call this function once when starting the turn.
+            Specifying linear_velocity or angular_velocity will update the value for future calls
+            using this object.
+
+        """
         global debug
 
         # Update turn values
@@ -92,6 +114,16 @@ class TurnHandler:
     # Continue the current turn until we have reached the desired turn radians
     # Returns True when done turning, False if still turning
     def continue_turn(self):
+        """Continues a turn which will proceed until the previously specified angle has been reached.
+
+        Return:
+            True: When robot reaches specified angle. Stops the robot when done turning.
+            False: When robot needs to continue turning.
+
+        Notes:
+            Call this function until it returns true.
+
+        """
         if self.current_angle < self.turn_rads: 
             # Set velocity to continue turn
             set_vel(x=self.linear_velocity,
@@ -110,13 +142,17 @@ class TurnHandler:
             self.stop_turn()  
             return True
 
-    # Stop the robot from turning
     def stop_turn(self):
+        """Stops the robot from turning"""
         set_vel() 
 
 
 class ObstacleHandler:
+    """Handles turning the robot depending on sensor range data it receives."""
+
     def __init__(self):
+        """Creates a new ObstacleHandler which has avoid and escape behavior."""
+
         global turn_handler
 
         self.turn_direction = None
@@ -124,6 +160,15 @@ class ObstacleHandler:
 
     # Initialize variables for turning
     def start(self, ranges):
+        """Starts the obstacle avoidance behavior.
+
+        Notes:
+            This function is called once whenever an obstacle is first detected that is too close.
+            The behavior chosen is dependant on whether or not the global escape_inhibitor is set.
+            If escape_inhibitor == True, then the robot will escape.
+            Otherwise it will avoid.
+
+        """
         global escape_inhibitor
 
         if escape_inhibitor: 
@@ -135,8 +180,13 @@ class ObstacleHandler:
             # Set direction to turn away from asymmetric obstacle
             self.turn_direction = -1 if ranges[2] < ranges[0] else 1
 
-    # Continue turn away from obstacle 180 +- 30 deg
     def escape(self):
+        """Turns away from an obstacle 180 +- 30 deg.
+        
+        Notes:
+            This should be called until the robot has turned the desired amount.
+            It then sets the global variable escape_inhibitor to False.
+        """
         global escape_inhibitor
 
         if self.turn_handler.continue_turn():
@@ -144,7 +194,12 @@ class ObstacleHandler:
             escape_inhibitor = False
     
     # Turn away from the obstacle
-    def avoid(self): 
+    def avoid(self):
+        """Turns away from an obstacle.
+        
+        Notes:
+            This should be called until the robot has turned so that the obstacle is no longer close.
+        """
         set_vel(az=self.turn_direction * default_a_velocity)
 
 
@@ -153,7 +208,7 @@ class RandomTurnHandler:
 
     def __init__(self, min_degs=random_turn_min_degs, max_degs=random_turn_max_degs):
         """Creates a RandomTurnHandler that is initialized to turn between specified the degrees.
-stop_turn
+
         Args:
             min_degs (optional): The minimum amount the robot should turn (can be negative).
             max_degs (optional): The maximum amount the robot should turn (can be negative).
@@ -212,8 +267,25 @@ stop_turn
 #########################
 
 
-# Set velocity Twist object to be published for this time-step
+
 def set_vel(x=0.0, y=0.0, z=0.0, ax=0.0, ay=0.0, az=0.0):
+    """Set velocity Twist object to be published for this time-step 
+    
+    Args:
+        x: Linear velocity.
+        y: Not used. 
+        z: Not used.
+        ax: Not used.
+        ay: Not used.
+        az: Angular velocity.
+    
+    Return:
+        Twist object representing the velocities.
+    
+    Notes:
+        Sets the global vel_msg velocities.
+    
+    """
     vel_msg.linear.x = x
     vel_msg.linear.y = y
     vel_msg.linear.z = z
@@ -227,8 +299,15 @@ def set_vel(x=0.0, y=0.0, z=0.0, ax=0.0, ay=0.0, az=0.0):
     return vel_msg
 
 
-# Async bump handler - handle bumps
 def handle_that_bump(bump):
+    """ Async bump handler
+
+        Handles bumps by setting the bump inhibitor.
+
+        Note:
+            Is normally executed as a callback by the subscriber to the BumperEvent event.
+
+    """
     global bump_inhibitor
     if debug:
         print "bumped"
@@ -237,21 +316,34 @@ def handle_that_bump(bump):
         bump_inhibitor = True
 
 
-# Async laser handler - handles lasers
 def handle_that_laser(scan):
+    """ Async laser handler
+
+        Handles laser data by checking for obstacles and setting the appropriate inhibitor:
+        either escape or avoid. Also starts the ObstacleHandler.
+
+        Note:
+            Is normally executed as a callback by the subscriber to the LaserScan event.
+
+    """
+
     global kill, escape_inhibitor, avoid_inhibitor, obstacle_handler
+
     if escape_inhibitor or obstacle_handler is None:
         return
+
     # Separate laser scan into thirds, determine if object is to left, right, or in front
     ranges = [min(scan.ranges[0:219]),
               min(scan.ranges[220:430]),
               min(scan.ranges[431:])]
+
     if debug:
         print_out = 'Ranges: \tleft = ' + str(ranges[0]) \
                     + "\n\t\tmiddle = " + str(ranges[1]) \
                     + "\n\t\tright = " + str(ranges[2])
         # print print_out
 
+    # Determine for each third if there is an obstacle within the danger zone.
     obstacle_left = ranges[0] < laser_danger_distance
     obstacle_center = ranges[1] < laser_danger_distance
     obstacle_right = ranges[2] < laser_danger_distance
@@ -274,14 +366,28 @@ def handle_that_laser(scan):
 
 # Async odom handler - handles the odom
 def handle_that_odom(odom):
+    """ Async odometry handler
+
+        Handles odometry data by calculating the travelled distance, setting
+        the random_turn_inhibitor, and starting the random turn.
+
+        Note:
+            Is normally executed as a callback by the subscriber to the Odometry event.
+
+    """
+
     global prev_pos, random_turn_inhibitor, random_turn_handler
+
     if random_turn_handler is None:
         return
+    
+    # update pose and position
     pose = odom.pose.pose
     curr_pos = pose.position
     if prev_pos is None:
         prev_pos = curr_pos
     else:
+        # calculate traveled distance
         dx = (curr_pos.x - prev_pos.x)
         dy = (curr_pos.y - prev_pos.y)
         dist = math.hypot(dx, dy)
@@ -293,6 +399,16 @@ def handle_that_odom(odom):
 
 
 def do_bump():
+    """ Process a bump inhibition state
+
+        Stops the robot.
+        If user presses "x" it will back up and continue.
+
+        Note:
+            Is normally executed when bump_inhibitor == True.
+
+    """
+
     global bump_inhibitor
     print 'Bumped, press "x" to back up'
     set_vel()  # stop
@@ -305,6 +421,16 @@ def do_bump():
 
 
 def do_keys():
+    """ Process a valid keypress event.
+
+        Depending on the key, will cause the robot to move.
+        Keys and actions defined in 'keyboard.py'.
+
+        Note:
+            Not called when bump_inhibitor state is true.
+
+    """
+
     # Get keyboard input
     key = keys.key
     print 'Doing what the human says: ' + str(key)
@@ -315,6 +441,16 @@ def do_keys():
 
 
 def do_escape_obstacle():
+    """ Process a escape inhibition state.
+
+        Rotates 180 +- 30 degs away from symmetric obstacle.
+
+        Note:
+            Is normally executed when escape_inhibitor == True,
+            and none of the above states are true.
+
+    """
+    
     global obstacle_handler
     # escape obstacle
     print 'Escaping the bad thing'
