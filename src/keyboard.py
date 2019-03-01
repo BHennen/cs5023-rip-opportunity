@@ -1,4 +1,4 @@
-#code heavily borrowed from turtlebot_teleop_key.py
+# code heavily borrowed from turtlebot_teleop_key.py:
 
 # Copyright (c) 2011, Willow Garage, Inc.
 # All rights reserved.
@@ -27,19 +27,21 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-import sys, select, termios, tty
+import sys
+import select
+import termios
+import tty
 
 
 class RoboKeyboardControl:
     # 'key': [linear velocity, angular velocity]
     moveBindings = {
-        'w': [1, 0], # forward
-        'a': [1, 1], # left
-        's': [0, 0], # stop
-        'd': [1, -1], # right
-        'x': [-1, 0] # back
+        'w': [1, 0],   # forward
+        'a': [1, 1],   # left
+        's': [0, 0],   # stop
+        'd': [1, -1],  # right
+        'x': [-1, 0]   # back
     }
-
 
     def __init__(self):
         self.settings = termios.tcgetattr(sys.stdin)
@@ -60,9 +62,3 @@ class RoboKeyboardControl:
     def hasKey(self):
         self.key = self.getKey()
         return self.key in self.moveBindings.keys()
-
-
-
-
-
-

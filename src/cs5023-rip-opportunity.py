@@ -16,7 +16,9 @@ from sensor_msgs.msg import LaserScan
 from nav_msgs.msg import Odometry
 
 # Create publisher to turtlebot nav (queue_size determined arbitrarily)
-nav_pub = rospy.Publisher('mobile_base/commands/velocity', Twist, queue_size=10)
+nav_pub = rospy.Publisher('mobile_base/commands/velocity',
+                          Twist,
+                          queue_size=10)
 
 # Global twist object
 vel_msg = Twist()
@@ -27,8 +29,8 @@ SLEEP_AMT = 0.1
 bumped = False
 
 # Default speed values
-default_forward_velocity = 0.3
-default_a_velocity = 1
+default_forward_velocity = 0.3 # assuming 0.3m/s
+default_a_velocity = 1 # 1rad/s
 
 # Inhibition flags
 bump_inhibitor = False
@@ -41,12 +43,15 @@ random_turn_inhibitor = False
 keys = None
 
 # Laser variables
-laser_min_distance = 0.50  # Distance that indicates object is immediately in front of robot
+# Distance that indicates object is immediately in front of robot
 laser_danger_distance = 0.75
 obstacle_handler = None
 
 # Turn variables
+turn_handler = None
 random_turn_handler = None
+random_turn_min_degs = -15
+random_turn_max_degs = 15
 
 # Odom variables
 prev_pos = None
@@ -56,80 +61,150 @@ kill = False
 debug = True
 
 
-################
-# Bump Handler #
-################
-
-
-class ObstacleHandler:
-    def __init__(self):
-        self.ranges = None
-        self.turn_direction = None
-        self.turn_rads = None
+class TurnHandler:
+    def __init__(self, linear_velocity=0, angular_velocity=default_a_velocity):
+        self.linear_velocity = linear_velocity
+        self.angular_velocity = angular_velocity
         self.t0 = None
         self.current_angle = None
-
-    def start(self, ranges):
-        self.ranges = ranges
-        global escape_inhibitor
-
-        if escape_inhibitor:
-            random_variance = math.radians(rand.randint(-30, 30))
-            self.turn_rads = math.pi + random_variance
-            self.t0 = rospy.Time.now().to_sec()
-            self.current_angle = 0
-
-        self.turn_direction = -1 if self.ranges[2] < self.ranges[0] else 1
-
-    def escape(self):
-        global debug
-        global escape_inhibitor
-
-        if self.current_angle < self.turn_rads:
-            set_vel(az=self.turn_direction * default_a_velocity)
-            t1 = rospy.Time.now().to_sec()
-            self.current_angle = default_a_velocity * (t1 - self.t0)
-            if debug:
-                print "Rotated %f deg" % math.degrees(self.current_angle)*self.turn_direction
-        else:
-            escape_inhibitor = False
-            set_vel()  # reset vel
-
-    def avoid(self):
-        global debug
-        global avoid_inhibitor
-
-        set_vel(az=self.turn_direction * default_a_velocity)
-
-
-class RandomTurnHandler:
-    def __init__(self):
-        self.turn_rads = None
         self.turn_direction = None
-        self.current_angle = None
-        self.t0 = None
+        self.turn_rads = None
 
-    def start(self, turn_rads):
-        global random_turn_inhibitor
+    # Record current time and set velocity to begin the turn
+    def start_turn(self, turn_rads, linear_velocity=None, angular_velocity=None):
+        global debug
+
+        # Update turn values
+        if linear_velocity is not None:
+            self.linear_velocity = linear_velocity
+        if angular_velocity is not None:
+            self.angular_velocity = angular_velocity
+
+        # Set initial turn state variables
         self.t0 = rospy.Time.now().to_sec()
         self.current_angle = 0
         self.turn_direction = -1 if turn_rads < 0 else 1
         self.turn_rads = abs(turn_rads)
-        print 'Randomly rotating %f degs' % math.degrees(turn_rads)
 
-    def turn(self):
-        global debug
-        global random_turn_inhibitor
+        if debug:
+            print 'Rotating %f degs' % math.degrees(turn_rads)
 
-        if self.current_angle < self.turn_rads:
-            set_vel(az=self.turn_direction * default_a_velocity)
+    # Continue the current turn until we have reached the desired turn radians
+    # Returns True when done turning, False if still turning
+    def continue_turn(self):
+        if self.current_angle < self.turn_rads: 
+            # Set velocity to continue turn
+            set_vel(x=self.linear_velocity,
+                    az=self.angular_velocity*self.turn_direction)
+
+            # Integrate angular velocity based on the time since we started turning to determine angle
             t1 = rospy.Time.now().to_sec()
             self.current_angle = default_a_velocity * (t1 - self.t0)
+
             if debug:
-                print "Rotated %f rads" % math.degrees(self.current_angle)*self.turn_direction
-        else:
+                print "Rotated %f deg" % math.degrees(self.current_angle) \
+                                         * self.turn_direction
+            return False
+        else: 
+            # Done turning
+            self.stop_turn()  
+            return True
+
+    # Stop the robot from turning
+    def stop_turn(self):
+        set_vel() 
+
+
+class ObstacleHandler:
+    def __init__(self):
+        global turn_handler
+
+        self.turn_direction = None
+        self.turn_handler = turn_handler
+
+    # Initialize variables for turning
+    def start(self, ranges):
+        global escape_inhibitor
+
+        if escape_inhibitor: 
+            # Setup turn to face away from symmetric obstacle
+            random_variance = math.radians(rand.randint(-30, 30))
+            turn_rads = math.pi + random_variance
+            self.turn_handler.start_turn(turn_rads)
+        else: 
+            # Set direction to turn away from asymmetric obstacle
+            self.turn_direction = -1 if ranges[2] < ranges[0] else 1
+
+    # Continue turn away from obstacle 180 +- 30 deg
+    def escape(self):
+        global escape_inhibitor
+
+        if self.turn_handler.continue_turn():
+            # Done turning
+            escape_inhibitor = False
+    
+    # Turn away from the obstacle
+    def avoid(self): 
+        set_vel(az=self.turn_direction * default_a_velocity)
+
+
+class RandomTurnHandler:
+    """Handles turning the robot a random amount."""
+
+    def __init__(self, min_degs=random_turn_min_degs, max_degs=random_turn_max_degs):
+        """Creates a RandomTurnHandler that is initialized to turn between specified the degrees.
+stop_turn
+        Args:
+            min_degs (optional): The minimum amount the robot should turn (can be negative).
+            max_degs (optional): The maximum amount the robot should turn (can be negative).
+        Note:
+            min_degs <= max_degs
+
+            min_degs and max_degs if not provided are set at the top of the file.
+        
+        """
+        global turn_handler
+
+        self.min_degs = min_degs
+        self.max_degs = max_degs
+        self.turn_handler = turn_handler
+    
+    def start(self, min_degs=None, max_degs=None):
+        """Function that is called to initialize the start of a turn.
+
+        Args:
+            min_degs (optional): The minimum amount the robot should turn (can be negative).
+            max_degs (optional): The maximum amount the robot should turn (can be negative).
+        Note:
+            min_degs <= max_degs
+
+            min_degs and max_degs set the class values for future calls without parameters.
+            min_degs and max_degs if not provided are set upon initialization of the class.
+        
+        """
+        global debug
+
+        if min_degs is not None:
+            self.min_degs = min_degs
+        if max_degs is not None:
+            self.max_degs = max_degs
+        
+        turn_degs = rand.randint(self.min_degs, self.max_degs)
+        turn_rads = math.radians(turn_degs)
+        print 'Random turn from (%f to %f) deg will be: %f' % (self.min_degs, self.max_degs, turn_degs)
+        turn_handler.start_turn(turn_rads)
+
+        if debug:
+            print 'Randomly rotating %f degs' % math.degrees(turn_rads)
+
+    def turn(self):
+        """Function that is called when wanting to continue turning."""
+        
+        global random_turn_inhibitor
+
+        if self.turn_handler.continue_turn():
+            # Done turning
             random_turn_inhibitor = False
-            set_vel()  # reset vel
 
 
 #########################
@@ -165,10 +240,12 @@ def handle_that_bump(bump):
 # Async laser handler - handles lasers
 def handle_that_laser(scan):
     global kill, escape_inhibitor, avoid_inhibitor, obstacle_handler
-    if escape_inhibitor:
+    if escape_inhibitor or obstacle_handler is None:
         return
     # Separate laser scan into thirds, determine if object is to left, right, or in front
-    ranges = [min(scan.ranges[0:219]), min(scan.ranges[220:430]), min(scan.ranges[431:])]
+    ranges = [min(scan.ranges[0:219]),
+              min(scan.ranges[220:430]),
+              min(scan.ranges[431:])]
     if debug:
         print_out = 'Ranges: \tleft = ' + str(ranges[0]) \
                     + "\n\t\tmiddle = " + str(ranges[1]) \
@@ -182,7 +259,8 @@ def handle_that_laser(scan):
     if obstacle_left and obstacle_right:
         # symmetric obstacle
         escape_inhibitor = True
-        avoid_inhibitor = False  # reset avoid inhibitor in case symmetric obstacle detected while avoiding
+        # reset avoid inhibitor in case symmetric obstacle detected while avoiding
+        avoid_inhibitor = False
         obstacle_handler.start(ranges)
     elif obstacle_center or obstacle_left or obstacle_right:
         # asymmetric obstacle
@@ -197,6 +275,8 @@ def handle_that_laser(scan):
 # Async odom handler - handles the odom
 def handle_that_odom(odom):
     global prev_pos, random_turn_inhibitor, random_turn_handler
+    if random_turn_handler is None:
+        return
     pose = odom.pose.pose
     curr_pos = pose.position
     if prev_pos is None:
@@ -208,11 +288,8 @@ def handle_that_odom(odom):
         # If we have traveled a foot or more
         if dist >= 0.3048:
             prev_pos = curr_pos
-            turn_degs = rand.randint(-15, 15)
-            turn_rads = math.radians(turn_degs)
-            print 'Random turn will be: %f' % turn_degs
             random_turn_inhibitor = True
-            random_turn_handler.start(turn_rads)
+            random_turn_handler.start()
 
 
 def do_bump():
@@ -222,7 +299,8 @@ def do_bump():
     if keys.hasKey():
         if keys.key == 'x':
             linear_vel, angular_vel = keys.moveBindings[keys.key]
-            set_vel(x=default_forward_velocity * linear_vel, az=default_a_velocity * angular_vel)
+            set_vel(x=default_forward_velocity * linear_vel,
+                    az=default_a_velocity * angular_vel)
             bump_inhibitor = False
 
 
@@ -232,7 +310,8 @@ def do_keys():
     print 'Doing what the human says: ' + str(key)
     linear_vel, angular_vel = keys.moveBindings[key]
     # Move robot
-    set_vel(x=default_forward_velocity * linear_vel, az=default_a_velocity * angular_vel)
+    set_vel(x=default_forward_velocity * linear_vel,
+            az=default_a_velocity * angular_vel)
 
 
 def do_escape_obstacle():
@@ -288,23 +367,20 @@ def do_bot_logic():
     nav_pub.publish(vel_msg)
 
 
-# time_now = rospy.Time.now().to_sec()
-# if (time_now - start_time > 1):
-# 	exit()
-
-
 # Maintains the "alive" status of the robot
 def start_bot():
-    global kill, keys, obstacle_handler, random_turn_handler, start_time
+    global kill, keys, obstacle_handler, random_turn_handler, turn_handler
     # Init subscribers
-    rospy.Subscriber('mobile_base/events/bumper', BumperEvent, handle_that_bump)
+    rospy.Subscriber('mobile_base/events/bumper',
+                     BumperEvent,
+                     handle_that_bump)
     rospy.Subscriber('/scan', LaserScan, handle_that_laser)
     rospy.Subscriber('/odom', Odometry, handle_that_odom)
     # Init node
     rospy.init_node('rip_opportunity_rover', anonymous=True)
-    start_time = rospy.Time.now().to_sec()
     # Init keyboard
     keys = RoboKeyboardControl()
+    turn_handler = TurnHandler()
     obstacle_handler = ObstacleHandler()
     random_turn_handler = RandomTurnHandler()
 
