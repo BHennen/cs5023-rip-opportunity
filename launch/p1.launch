@@ -1,0 +1,10 @@
+<launch>
+  <include file="$(find turtlebot_gazebo)/launch/turtlebot_world.launch">
+    <arg name="world_file" value="$(find cs5023_rip_opportunity)/resources/project1.world"/>
+  </include>
+
+  <include file="$(find turtlebot_gazebo)/launch/gmapping_demo.launch"/>
+
+  <!-- PROJECT NODE -->
+  <node pkg="cs5023_rip_opportunity" type="cs5023_rip_opportunity.py" name="cs5023_rip_opportunity" output="screen"/>
+</launch>
