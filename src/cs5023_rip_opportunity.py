@@ -45,7 +45,7 @@ keys = None
 
 # Laser variables
 # Distance that indicates object is immediately in front of robot
-laser_danger_distance = 0.75
+laser_danger_distance = 1.75
 obstacle_handler = None
 
 # Turn variables
@@ -108,7 +108,7 @@ class TurnHandler:
             return False
         else: 
             # Done turning
-            self.stop_turn()  
+            # self.stop_turn()
             return True
 
     # Stop the robot from turning
@@ -241,12 +241,16 @@ def handle_that_bump(bump):
 # Async laser handler - handles lasers
 def handle_that_laser(scan):
     global kill, escape_inhibitor, avoid_inhibitor, obstacle_handler
-    if escape_inhibitor or obstacle_handler is None:
+    if escape_inhibitor is None or obstacle_handler is None:
         return
     # Separate laser scan into thirds, determine if object is to left, right, or in front
-    ranges = [min(scan.ranges[0:219]),
-              min(scan.ranges[220:430]),
-              min(scan.ranges[431:])]
+    # print(len(scan.ranges))
+    num_ranges = len(scan.ranges)
+    region1 = int(num_ranges/3)
+    region2 = region1*2
+    ranges = [min(scan.ranges[0:region1]),
+              min(scan.ranges[region1+1:region2]),
+              min(scan.ranges[region2:])]
     if debug:
         print_out = 'Ranges: \tleft = ' + str(ranges[0]) \
                     + "\n\t\tmiddle = " + str(ranges[1]) \
