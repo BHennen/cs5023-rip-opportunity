@@ -415,6 +415,8 @@ def do_bump():
     global bump_inhibitor
     rospy.loginfo('Bumped, press "x" to back up')
     set_vel()  # stop
+    
+    #Check if user presses 'x' to back up
     if keys.hasKey():
         if keys.key == 'x':
             linear_vel, angular_vel = keys.moveBindings[keys.key]
@@ -461,6 +463,17 @@ def do_escape_obstacle():
 
 
 def do_avoid_obstacle():
+    """ Process an avoid obstacle inhibition state.
+
+    Turns away from the obstacle until the obstacle is no longer 
+    considered too close to the robot.
+
+    Note:
+        Is normally executed when avoid_inhibitor == True,
+        and none of the above states are true.
+
+    """
+
     global obstacle_handler
     # Avoid obstacle
     rospy.loginfo('Avoiding the bad thing')
@@ -468,6 +481,16 @@ def do_avoid_obstacle():
 
 
 def do_random_turn():
+    """ Process an random turn inhibition state.
+
+    Rotates randomly +- 15 degs. Called automatically after
+    the robot travels forward ~1 foot.
+
+    Note:
+        Is normally executed when random_turn_inhibitor == True,
+        and none of the above states are true.
+
+    """
     global random_turn_handler
     # Get random amount to turn by
     # Turn
@@ -476,12 +499,27 @@ def do_random_turn():
 
 
 def go_forward():
+    """ The robot drives forward.
+
+    Note:
+        Is normally executed when none of the above states are true.
+
+    """
+
     rospy.loginfo('Going forward')
     set_vel(x=default_forward_velocity)
 
 
 # All bot logic goes here
 def do_bot_logic():
+    """ Performs a certain behavior based on set inhibition states.
+
+    Priorities are determined by whichever inhibitor comes first in the
+    if statements. Each action sets a velocity, and the function then
+    publishes the desired velocity to the robot.
+
+    """
+
     # Check for inhibition signals
     # global bump_inhibitor, keyboard_inhibitor, escape_inhibitor, random_turn_inhibitor
     if bump_inhibitor:
@@ -505,9 +543,15 @@ def do_bot_logic():
     # Publish movement
     nav_pub.publish(vel_msg)
 
-
-# Maintains the "alive" status of the robot
 def start_bot():
+    """ Maintains the "alive" status of the robot.
+
+    Subscribes to all the required sensors and initializes all
+    behavior handlers. Then runs the bot logic until we stop
+    the program.
+
+    """
+
     global kill, keys, obstacle_handler, random_turn_handler, turn_handler
     # Init subscribers
     rospy.Subscriber('mobile_base/events/bumper',
