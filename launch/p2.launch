@@ -1,0 +1,4 @@
+<launch>
+  <!-- PROJECT NODE -->
+  <node pkg="cs5023_rip_opportunity" type="cs5023_rip_opportunity.py" name="cs5023_rip_opportunity" output="screen"/>
+</launch>
