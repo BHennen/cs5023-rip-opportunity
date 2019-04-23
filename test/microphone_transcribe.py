@@ -1,7 +1,15 @@
 import speech_recognition as sr
 
 r = sr.Recognizer()
+# r.energy_threshold = 600
+# r.dynamic_energy_threshold = False
 m = sr.Microphone()
+keywords = []
+sensitivity = 0.1
+
+with open('test/keywords.txt', 'r') as f:
+    keywords = [(keyword, sensitivity) for keyword in f.readlines()]
+    print(keywords)
 
 try:
     print("A moment of silence, please...")
@@ -9,11 +17,13 @@ try:
     print("Set minimum energy threshold to {}".format(r.energy_threshold))
     while True:
         print("Say something!")
-        with m as source: audio = r.listen(source)
+        with m as source:
+            audio = r.listen(source, timeout=3.0, phrase_time_limit=1.0)
         print("Got it! Now to recognize it...")
         try:
             # recognize speech using Google Speech Recognition
-            value = r.recognize_sphinx(audio)
+            value = r.recognize_sphinx(
+                audio_data=audio, keyword_entries=keywords)
 
             # we need some special handling here to correctly print unicode characters to standard output
             if str is bytes:  # this version of Python uses bytes for strings (Python 2)
