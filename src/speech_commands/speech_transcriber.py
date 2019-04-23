@@ -19,7 +19,7 @@ class SpeechTranscriber():
                 try:
                     # recognize speech using Google Speech Recognition
                     value = self.r.recognize_sphinx(
-                        audio_data=audio, grammar='grammar.gram')
+                        audio_data=audio, grammar='src\speech_commands\commands.gram')
 
                     # we need some special handling here to correctly print unicode characters to standard output
                     # this version of Python uses bytes for strings (Python 2)
@@ -35,3 +35,6 @@ class SpeechTranscriber():
                         "Uh oh! Couldn't request results from Google Speech Recognition service; {0}".format(e))
         except KeyboardInterrupt:
             pass
+
+sc = SpeechTranscriber()
+sc.start_listening('123')
