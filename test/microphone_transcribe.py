@@ -8,7 +8,7 @@ keywords = []
 sensitivity = 0.1
 
 with open('test/keywords.txt', 'r') as f:
-    keywords = [(keyword, sensitivity) for keyword in f.readlines()]
+    keywords = [(keyword.strip(), sensitivity) for keyword in f.readlines()]
     print(keywords)
 
 try:
