@@ -1,13 +1,32 @@
 #JSGF V1.0;
 
+/* Notes on use:
+
+See https://www.w3.org/TR/jsgf/ for structure.
+
+All words must be spelled correctly and in the dictionary to work,
+otherwise unhelpful error appears: Decoder_set_fsg returned -1
+
+Also name of the grammar and primary rule must match:
+    grammar grammarName;
+    public <grammarName> = ruleExpansion;
+otherwise this error appears:
+    AttributeError: 'NoneType' object has no attribute 'writefile'
+
+If you want to change the grammar but have already run the program,
+you must delete the .fsg file that was generated in the same path.
+(this is automatically generated if not already existing, but not updated)
+
+*/
+
 grammar commands;
-<command> = go <direction> <distance>;
+public <commands> = go <direction> <distance>;
 <direction> = <updown> | <leftright> | <updown> and <leftright>;
 <updown> = forward | backward;
 <leftright> = left | right;
 <distance> = <number> <unit>;
 <number> = <tens> <ones> | <tens> | <teens> | <ones> | ten;
-<tens> = twenty | thirty | fourty | fifty | sixty | seventy | eighty | ninety;
+<tens> = twenty | thirty | forty | fifty | sixty | seventy | eighty | ninety;
 <teens> = eleven | twelve | thirteen | fourteen | fifteen | sixteen | seventeen | eighteen | nineteen;
 <ones> = one | two | three | four | five | six | seven | eight | nine;
-<unit> = meters | feet;
+<unit> = meters | meter | feet | foot;

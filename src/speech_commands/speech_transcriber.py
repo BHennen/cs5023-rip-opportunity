@@ -14,7 +14,7 @@ class SpeechTranscriber():
             while True:
                 print("Say something!")
                 with self.m as source:
-                    audio = self.r.listen(source, timeout=3.0, phrase_time_limit=1.0)
+                    audio = self.r.listen(source, phrase_time_limit=3.0)
                 print("Got it! Now to recognize it...")
                 try:
                     # recognize speech using Google Speech Recognition
