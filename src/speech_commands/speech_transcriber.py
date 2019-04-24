@@ -48,6 +48,7 @@ class SpeechTranscriber():
             pass
 
 if __name__ == "__main__":
+    #Use by calling: python speech_transcriber.py [keywords|grammar]
     import sys
     import os
 
@@ -86,7 +87,7 @@ if __name__ == "__main__":
 
             def __le__(self, o):
                 return True
-                
+
         sensitivity = Hack(-1) 
         with open(os.path.join(data_path, "keywords.txt"), 'r') as f:
             keywords = [(keyword.strip(), sensitivity)
