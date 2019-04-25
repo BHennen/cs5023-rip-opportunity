@@ -1,9 +1,14 @@
 from speech_transcriber import SpeechTranscriber
-from word2number import w2n
+# from word2number import w2n
 import math
 import threading
 
 FEET_2_METERS = 0.3048
+
+word2num_dict = {'one':1,'two':2,'three':3,'four':4,'five':5,'six':6,'seven':7,'eight':8,'nine':9,'ten':10}
+
+def word_to_num(word):
+    return word2num_dict[word]
 
 class Distance:
     def __init__(self, magnitude, unit):
@@ -132,7 +137,7 @@ class CmdParser:
             (f, b, l, r) = self.get_distance(f, b, l, r, dir2)
         # If magnitude is specified, get it
         if amt is not None and unit is not None:
-            dist = Distance(w2n.word_to_num(amt), unit)
+            dist = Distance(word_to_num(amt), unit)
         return Command(f, b, l, r, dist)
 
     def command_callback_st(self, command_str):
@@ -155,8 +160,6 @@ class CmdParser:
         # Stop SR listener thread
         self.run_thread = False
         self.sr_thread.join()
-
-
 
 
 if __name__ == "__main__":
