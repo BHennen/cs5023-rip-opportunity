@@ -1,16 +1,28 @@
-# CS 4023/5023
+# CS 4023/5023 - Smart Robits
 
-By:
- - Ariana Paz
- - Bryce Hennen
- - Cameron Bost
- - Cody Standridge
- - Tim Klense
- 
-Ros Launch file in /launch
+## Authors
+- Ariana Paz
+- Bryce Hennen
+- Cameron Bost
+- Cody Standridge
+- Tim Klense
 
-Documentation in /documents
+## Installation 
+### pip requirements (note: python 2.7)
+- word2number
+- SpeechRecognition
+- pyaudio
+- pocketsphinx
 
-Code in /src
+## Project Structure
+### Launch Files
+Located in <b>"/launch"</b> directory
 
-World file in /resources
+### Documentation Files
+Located in <b>"/documents"</b> directory
+
+### Source Files
+Located in <b>"/src"</b> directory
+
+### World Files
+Located in <b>"/resources"</b> directory
