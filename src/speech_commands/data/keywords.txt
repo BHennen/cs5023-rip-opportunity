@@ -1,7 +1,1 @@
-forward
-backward
-left
-right
-stop
-halt
-go
+robot hello
