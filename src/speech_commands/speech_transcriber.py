@@ -1,10 +1,22 @@
 import speech_recognition as sr
+import os
 
 
 class SpeechTranscriber():
     def __init__(self):
         self.r = sr.Recognizer()
         self.m = sr.Microphone()
+
+        # Get language data
+        language_directory = os.path.join(os.path.dirname(os.path.realpath(__file__)), "data", "language")
+        if not os.path.isdir(language_directory):
+            raise Exception("missing language data directory: \"{}\"".format(language_directory))
+        acoustic_parameters_directory = os.path.join(language_directory, "acoustic-model")
+        language_model_file = os.path.join(language_directory, "language-model.lm.bin")
+        phoneme_dictionary_file = os.path.join(language_directory, "pronounciation-dictionary.dict")
+        self.language = (acoustic_parameters_directory, language_model_file, phoneme_dictionary_file)
+
+        # Adjust for ambient noise
         print("A moment of silence, please...")
         with self.m as source:
             self.r.adjust_for_ambient_noise(source)
@@ -48,10 +60,10 @@ class SpeechTranscriber():
         try:
             if grammar:
                 value = self.r.recognize_sphinx(
-                    audio_data=audio, grammar=grammar)
+                    audio_data=audio, grammar=grammar, language=self.language)
             elif keywords:
                 value = self.r.recognize_sphinx(
-                    audio_data=audio, keyword_entries= self.__generate_keywords(keywords))
+                    audio_data=audio, keyword_entries=self.__generate_keywords(keywords), language=self.language)
 
             # we need some special handling here to correctly print unicode characters to standard output
             # this version of Python uses bytes for strings (Python 2)
@@ -70,7 +82,6 @@ class SpeechTranscriber():
             return None
 
     def __generate_keywords(self, path):
-        import os
         class Hack:
             # sensitivity = 1  --> best you can do without editing line 769 of __init__.py of speech_recognition library
             # or you can hack some stuff; this will make sensitivity 1e[Hack.val]
@@ -107,7 +118,6 @@ class SpeechTranscriber():
         
         Returns the string command or None is no command recognized
         """
-        print(command_str)
         regex = r'\s*?zz\d{1,2}\s*'
         result = re.sub(regex, '', command_str)
         if not result: result = None
@@ -117,7 +127,6 @@ class SpeechTranscriber():
 if __name__ == "__main__":
     # Use by calling: python speech_transcriber.py [keywords|grammar]
     import sys
-    import os
 
     if len(sys.argv) > 1:
         test = sys.argv[1]
