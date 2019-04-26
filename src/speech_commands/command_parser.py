@@ -109,35 +109,38 @@ class CmdParser:
 
     def make_command(self, command_str):
         """Returns command after deriving from parameter"""
-        # 1. Remove "go ", separate into words
-        words = command_str[3:].split(" ")
-        # 2. Determine grammar based on word count
-        w = len(words)
-        (f, b, l, r, dist) = (False, False, False, False, None)
-        (dir1, dir2, amt, unit) = (None, None, None, None)
-        if w == 1:
-            # command_str = "go <dir>"
-            dir1 = words[0]
-        elif w == 3:
-            if 'and' in command_str:
-                # command_str = "go <dir1> and <dir2>"
-                dir1 = words[0]
-                dir2 = words[2]
-            else:
-                # command_str = "go <dir> <amt> <unit>"
-                (dir1, amt, unit) = (words[0], words[1], words[2])
-        elif w == 5:
-            # command_str = "go <dir1> and <dir2> <amt> <unit>"
-            (dir1, dir2, amt, unit) = (words[0], words[2], words[3], words[4])
-
-        # Get first direction
-        (f, b, l, r) = self.get_distance(f, b, l, r, dir1)
-        # If second direction exists, get it
-        if dir2 is not None:
-            (f, b, l, r) = self.get_distance(f, b, l, r, dir2)
-        # If magnitude is specified, get it
-        if amt is not None and unit is not None:
-            dist = Distance(self.__word_to_num(amt), unit)
+        f, b, l, r, dist = (False, False, False, False, None)
+        # 1. Separate into words
+        words = command_str.split(" ")
+        # 2. Check if stop, do nothing
+        if words[0] == "stop":
+            return Command(f, b, l, r, dist)  # use default values set above
+        
+        # Since grammar is guaranteed by transcriber to be sane, check & set directions
+        # Also record index of rightmost direction
+        end_dir_index = 0
+        if 'forward' in words:
+            f = True
+            end_dir_index = max(end_dir_index, words.index('forward'))
+        if 'backward' in words:
+            b = True
+            end_dir_index = max(end_dir_index, words.index('backward'))
+        if 'left' in words:
+            l = True
+            end_dir_index = max(end_dir_index, words.index('left'))
+        if 'right' in words:
+            r = True
+            end_dir_index = max(end_dir_index, words.index('right'))
+        
+        #Check if index is end of array; if it is then we have (turn | go) <direction> and no distance
+        if end_dir_index + 1 == len(words):
+            return Command(f, b, l, r, dist)
+        
+        #Combine strings from end of direction until the end of array - 1 to get magnitude of direction
+        magnitude_str = ' '.join(words[end_dir_index+1:-1])
+        # create distance object
+        dist = Distance(self.__word_to_num(magnitude_str), words[-1])
+        
         return Command(f, b, l, r, dist)
 
     def command_callback_st(self, command_str):
@@ -253,10 +256,19 @@ if __name__ == "__main__":
     test_str = 'go forward'
     print("Test string: "+test_str)
     print(str(cp.make_command(test_str)))
-    test_str = 'go left three degrees'
+    test_str = 'turn left three degrees'
     print("Test string: "+test_str)
     print(str(cp.make_command(test_str)))
-    test_str = 'go forward five degree'
+    test_str = 'turn right one hundred and sixty degrees'
+    print("Test string: "+test_str)
+    print(str(cp.make_command(test_str)))
+    test_str = 'turn right three hundred five degree'
+    print("Test string: "+test_str)
+    print(str(cp.make_command(test_str)))
+    test_str = 'turn right'
+    print("Test string: "+test_str)
+    print(str(cp.make_command(test_str)))
+    test_str = 'stop'
     print("Test string: "+test_str)
     print(str(cp.make_command(test_str)))
     print("*"*25 + "Done testing command parser" + "*"*25)
