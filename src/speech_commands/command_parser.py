@@ -96,19 +96,8 @@ class CmdParser:
         # Stop listener thread
         self.stop()
 
-    def get_distance(self, f, b, l, r, dir):
-        if dir == 'forward':
-            f = True
-        elif dir == 'backward':
-            b = True
-        elif dir == 'left':
-            l = True
-        elif dir == 'right':
-            r = True
-        return (f, b, l, r)
-
     def make_command(self, command_str):
-        """Returns command after deriving from parameter"""
+        """Returns command object given a command string"""
         f, b, l, r, dist = (False, False, False, False, None)
         # 1. Separate into words
         words = command_str.split(" ")
@@ -136,25 +125,25 @@ class CmdParser:
         if end_dir_index + 1 == len(words):
             return Command(f, b, l, r, dist)
         
-        #Combine strings from end of direction until the end of array - 1 to get magnitude of direction
+        #Combine strings from end_dir_index + 1 until the end of array - 1 to get magnitude of direction
+        #ex : turn right | one hundred and eighty | degrees
         magnitude_str = ' '.join(words[end_dir_index+1:-1])
         # create distance object
         dist = Distance(self.__word_to_num(magnitude_str), words[-1])
         
         return Command(f, b, l, r, dist)
 
-    def command_callback_st(self, command_str):
+    def __command_callback_st(self, command_str):
         # Construct command object
         cmd = self.make_command(command_str)
         # Call client's callback with it.
         self.command_callback(cmd)
-        pass
 
     def __start_listen(self):
         # Thread definition: run SR listen method until parser object is destroyed
         while self.run_thread:
             self.st.start_listening(grammar=self.grammar, keywords=self.keywords,
-                                    keyword_cb=self.keyword_callback, command_cb=self.command_callback_st)
+                                    keyword_cb=self.keyword_callback, command_cb=self.__command_callback_st)
 
     def start(self):
         # Start the listener thread to receive commands from the speech recog model
@@ -199,43 +188,6 @@ class CmdParser:
                 current = 0
 
         return result + current
-
-
-def word_to_num(textnum, numwords={}):
-    # Code borrowed from original at https://stackoverflow.com/a/493788 (@recursive)
-    if not numwords:
-        units = [
-            "zero", "one", "two", "three", "four", "five", "six", "seven", "eight",
-            "nine", "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen",
-            "sixteen", "seventeen", "eighteen", "nineteen",
-        ]
-
-        tens = ["", "", "twenty", "thirty", "forty",
-                "fifty", "sixty", "seventy", "eighty", "ninety"]
-
-        scales = ["hundred", "thousand", "million", "billion", "trillion"]
-
-        numwords["and"] = (1, 0)
-        for idx, word in enumerate(units):
-            numwords[word] = (1, idx)
-        for idx, word in enumerate(tens):
-            numwords[word] = (1, idx * 10)
-        for idx, word in enumerate(scales):
-            numwords[word] = (10 ** (idx * 3 or 2), 0)
-
-    current = result = 0
-    for word in textnum.split():
-        if word not in numwords:
-            raise Exception("Illegal word: " + word)
-
-        scale, increment = numwords[word]
-        current = current * scale + increment
-        if scale > 100:
-            result += current
-            current = 0
-
-    return result + current
-
 
 if __name__ == "__main__":
     print("*"*25 + "Testing command parser" + "*"*25)
