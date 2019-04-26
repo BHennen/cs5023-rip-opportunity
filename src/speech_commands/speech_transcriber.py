@@ -34,12 +34,12 @@ class SpeechTranscriber():
 
         # Listen for keyword
         keyword = self.__listen(keywords=keywords, phrase_time_limit=3.0)
-        if keyword is not None:
-            if callable(keyword_cb):
-                keyword_cb(keyword)
+        if callable(keyword_cb):
+            keyword_cb(keyword)
+        if keyword is not None:            
             # listen for command phrase using grammar, then pass it to the callback
             command = self.__listen(grammar=grammar, phrase_time_limit=5.0)
-            if command is not None and callable(command_cb):
+            if callable(command_cb):
                 command_cb(command)
 
     def __listen(self, grammar=None, keywords=None, timeout=None, phrase_time_limit=None):
