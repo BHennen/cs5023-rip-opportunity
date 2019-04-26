@@ -116,19 +116,19 @@ class CmdParser:
         if words[0] == "stop":
             return Command(f, b, l, r, dist)  # use default values set above
         
-        # Since grammar is guaranteed by transcriber to be sane, check & set directions
+        # check & set directions independently
         # Also record index of rightmost direction
         end_dir_index = 0
         if 'forward' in words:
             f = True
             end_dir_index = max(end_dir_index, words.index('forward'))
-        if 'backward' in words:
+        elif 'backward' in words:
             b = True
             end_dir_index = max(end_dir_index, words.index('backward'))
         if 'left' in words:
             l = True
             end_dir_index = max(end_dir_index, words.index('left'))
-        if 'right' in words:
+        elif 'right' in words:
             r = True
             end_dir_index = max(end_dir_index, words.index('right'))
         
