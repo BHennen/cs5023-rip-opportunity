@@ -284,7 +284,7 @@ if __name__ == "__main__":
                 out = "Keyword detected: {}".format(keyword_str)                
             else:
                 out = "No keyword detected!"
-            print(out)
+            print("Parse Thread - " + out)
 
 
         def command_cb(command_obj):
@@ -295,7 +295,7 @@ if __name__ == "__main__":
                 out = "Command detected: {}".format(command_obj)
             else:
                 out = "No command detected!"
-            print(out)
+            print("Parse Thread - " + out)
 
         data_path = os.path.join(os.path.dirname(
             os.path.realpath(__file__)), "data")
@@ -308,7 +308,7 @@ if __name__ == "__main__":
         try:
             while True:
                 # Simulate bot action
-                print("last kwd: {}\t last cmd: {}".format(last_kwd, last_cmd))
-                time.sleep(0.1)
+                print("Main Thread - last kwd: {}\t last cmd: {}".format(last_kwd, last_cmd))
+                time.sleep(0.5)
         except KeyboardInterrupt:
             parser.stop()
