@@ -79,19 +79,22 @@ class CmdParser:
 
     Both can call the callbacks with value of None if no keyword or command was detected in time.
     """
-    def __init__(self, grammar, keywords, command_callback, keyword_callback=None):
+
+    def __init__(self, grammar, keywords, command_callback, keyword_callback=None, loop_until_grammar=False):
         """ CmdParser constructor
         Args:
             grammar: string - path to grammar file
             keywords: string - path to keywords file
             command_callback: function - callback function, called when a command is received from the ST model
             keyword_callback: function - callback function, called when a keyword is detected by the ST model
+            loop_until_grammar: bool - If set to true, loops until valid grammar command is found after detecting a valid keyword.
         """
         self.st = SpeechTranscriber()
         self.keyword_callback = keyword_callback
         self.command_callback = command_callback
         self.grammar = grammar
         self.keywords = keywords
+        self.loop_until_grammar = loop_until_grammar
         """
         Fields:
             sr_thread: Thread - asynchronous, calls ST.start_listening
@@ -150,11 +153,28 @@ class CmdParser:
         # Call client's callback with it.
         self.command_callback(cmd)
 
+    def __keyword_callback_st(self, keyword_str):
+        # Call client's keyword callback
+        self.keyword_callback(keyword_str)
+
     def __start_listen(self):
         # Thread definition: run SR listen method until parser object is destroyed
             while self.run_thread:
-                self.st.start_listening(grammar=self.grammar, keywords=self.keywords,
-                                        keyword_cb=self.keyword_callback, command_cb=self.__command_callback_st)
+                # Listen for keyword, then pass it to callback
+                keyword = self.st.listen(keywords=self.keywords, phrase_time_limit=3.0)
+                if callable(self.__keyword_callback_st):
+                    self.__keyword_callback_st(keyword)
+
+                if keyword is not None:
+                    # Loop until grammar is heard (if desired)
+                    while True:
+                        # listen for command phrase using grammar, then pass it to the callback
+                        command = self.st.listen(grammar=self.grammar, phrase_time_limit=5.0)
+                        if callable(self.__command_callback_st):
+                            self.__command_callback_st(command)
+                        if not self.loop_until_grammar:
+                            break
+                
 
 
     def start(self):
@@ -273,6 +293,6 @@ if __name__ == "__main__":
         try:
             while True:
                 # Simulate bot action
-                time.sleep(0.1) 
+                time.sleep(0.1)
         except KeyboardInterrupt:
             parser.stop()

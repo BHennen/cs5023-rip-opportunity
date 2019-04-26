@@ -33,16 +33,16 @@ class SpeechTranscriber():
                 "Must specify grammar file path and keywords file.")
 
         # Listen for keyword
-        keyword = self.__listen(keywords=keywords, phrase_time_limit=3.0)
+        keyword = self.listen(keywords=keywords, phrase_time_limit=3.0)
         if callable(keyword_cb):
             keyword_cb(keyword)
         if keyword is not None:            
             # listen for command phrase using grammar, then pass it to the callback
-            command = self.__listen(grammar=grammar, phrase_time_limit=5.0)
+            command = self.listen(grammar=grammar, phrase_time_limit=5.0)
             if callable(command_cb):
                 command_cb(command)
 
-    def __listen(self, grammar=None, keywords=None, timeout=None, phrase_time_limit=None):
+    def listen(self, grammar=None, keywords=None, timeout=None, phrase_time_limit=None):
         '''
         Listen to a user using either a grammar or keyword entries
         Returns the first keyword or command found as a string.
@@ -141,7 +141,7 @@ if __name__ == "__main__":
         # run keywords/hotwords test
         try:
             while True:
-                print(st._SpeechTranscriber__listen(
+                print(st.listen(
                     keywords=os.path.join(data_path, "keywords.txt"), 
                     phrase_time_limit=3.0))
         except KeyboardInterrupt:
@@ -150,7 +150,7 @@ if __name__ == "__main__":
     elif test == 'grammar':
         try:
             while True:
-                print(st._SpeechTranscriber__listen(
+                print(st.listen(
                     grammar=os.path.join(data_path, "commands.gram"),
                     phrase_time_limit=5.0))
         except KeyboardInterrupt:
