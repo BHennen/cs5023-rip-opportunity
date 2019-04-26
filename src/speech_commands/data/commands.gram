@@ -17,6 +17,7 @@ If you want to change the grammar but have already run the program,
 you must delete the .fsg file that was generated in the same path.
 (this is automatically generated if not already existing, but not updated)
 
+Weights must be between 0 and 1
 */
 
 grammar commands;
