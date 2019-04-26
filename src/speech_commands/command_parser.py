@@ -76,25 +76,26 @@ class CmdParser:
 
     If a keyword is detected, the keyword callback is executed with the keyword string detected sent to the callback function.
     Then, if valid keyword detected, the command callback is executed with a new command object sent to the callback function.
-
+        If loop_until_command is True, then keeps checking for valid command until it gets one.
+    
     Both can call the callbacks with value of None if no keyword or command was detected in time.
     """
 
-    def __init__(self, grammar, keywords, command_callback, keyword_callback=None, loop_until_grammar=False):
+    def __init__(self, grammar, keywords, command_callback, keyword_callback=None, loop_until_command=False):
         """ CmdParser constructor
         Args:
             grammar: string - path to grammar file
             keywords: string - path to keywords file
             command_callback: function - callback function, called when a command is received from the ST model
             keyword_callback: function - callback function, called when a keyword is detected by the ST model
-            loop_until_grammar: bool - If set to true, loops until valid grammar command is found after detecting a valid keyword.
+            loop_until_command: bool - If set to true, loops until valid grammar command is found after detecting a valid keyword.
         """
         self.st = SpeechTranscriber()
         self.keyword_callback = keyword_callback
         self.command_callback = command_callback
         self.grammar = grammar
         self.keywords = keywords
-        self.loop_until_grammar = loop_until_grammar
+        self.loop_until_command = loop_until_command
         """
         Fields:
             sr_thread: Thread - asynchronous, calls ST.start_listening
@@ -173,7 +174,7 @@ class CmdParser:
                         grammar=self.grammar, phrase_time_limit=5.0)
                     if callable(self.__command_callback_st):
                         self.__command_callback_st(command)
-                    if not self.run_thread or command or not self.loop_until_grammar:
+                    if not self.run_thread or command or not self.loop_until_command:
                         # Stop looping if:
                         # We dont want to loop until we receive a valid command
                         # We received a valid command
@@ -303,7 +304,7 @@ if __name__ == "__main__":
         grammar_path = os.path.join(data_path, "commands.gram")
         loop = test == "speech-loop"
         parser = CmdParser(grammar=grammar_path, keywords=keywords_path,
-                           command_callback=command_cb, keyword_callback=keyword_cb, loop_until_grammar=loop)
+                           command_callback=command_cb, keyword_callback=keyword_cb, loop_until_command=loop)
         parser.start()
         try:
             while True:
