@@ -173,7 +173,11 @@ class CmdParser:
                         grammar=self.grammar, phrase_time_limit=5.0)
                     if callable(self.__command_callback_st):
                         self.__command_callback_st(command)
-                    if self.run_thread and not self.loop_until_grammar :
+                    if not self.run_thread or command or not self.loop_until_grammar:
+                        # Stop looping if:
+                        # We dont want to loop until we receive a valid command
+                        # We received a valid command
+                        # We receive signal to stop the thread
                         break
 
     def start(self):
@@ -269,17 +273,24 @@ if __name__ == "__main__":
     elif test == 'speech' or test == "speech-loop":
         import os
         import time
+        last_kwd = None
+        last_cmd = None
 
         def keyword_cb(keyword_str):
+            global last_kwd # Required to share data between main thread and parse thread
             out = ''
+            last_kwd = keyword_str
             if keyword_str:
-                out = "Keyword detected: {}".format(keyword_str)
+                out = "Keyword detected: {}".format(keyword_str)                
             else:
                 out = "No keyword detected!"
             print(out)
 
+
         def command_cb(command_obj):
+            global last_cmd  # Required to share data between main thread and parse thread
             out = ''
+            last_cmd = command_obj
             if command_obj:
                 out = "Command detected: {}".format(command_obj)
             else:
@@ -297,6 +308,7 @@ if __name__ == "__main__":
         try:
             while True:
                 # Simulate bot action
+                print("last kwd: {}\t last cmd: {}".format(last_kwd, last_cmd))
                 time.sleep(0.1)
         except KeyboardInterrupt:
             parser.stop()
