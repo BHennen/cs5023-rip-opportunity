@@ -22,11 +22,7 @@ Weights must be between 0 and 1
 
 grammar commands;
 
-public <commands> = <garbage> |
-<robocmd> |
-<garbage> <robocmd> |
-<robocmd> <garbage> |
-<garbage> <robocmd> <garbage>;
+public <commands> = [[<garbage>] [<robocmd>] [<garbage>]];
 
 <robocmd> = (/0.1/ go <direction>) |
 (/1/ go <direction> <distance>) |
