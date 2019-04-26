@@ -33,7 +33,7 @@ public <commands> = /1/ <garbage> |
 /1/ (turn <leftright>) |
 /20000/ (turn <leftright> <turnamount>);
 
-<direction> = <updown> | (<updown> and <leftright>);
+<direction> = /1/ <updown> | /2000/ (<updown> and <leftright>);
 <updown> = forward | backward;
 <leftright> = left | right;
 <distance> = (<ones> | ten) <distunit>;
