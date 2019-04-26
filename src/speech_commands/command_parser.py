@@ -5,10 +5,6 @@ import threading
 
 FEET_2_METERS = 0.3048
 
-word2num_dict = {'one':1,'two':2,'three':3,'four':4,'five':5,'six':6,'seven':7,'eight':8,'nine':9,'ten':10}
-
-def word_to_num(word):
-    return word2num_dict[word]
 
 class Distance:
     def __init__(self, magnitude, unit):
@@ -20,6 +16,7 @@ class Distance:
         self.magnitude = magnitude
         self.unit = unit
 
+
 class Command:
     """ Command constructor
     Attributes:
@@ -29,6 +26,7 @@ class Command:
         r: bool - indicates if right rotation is enabled
         magnitude: float - indicates amount of units to move (meters/radians); None if not specified
     """
+
     def __init__(self, f, b, l, r, dist):
         """ Command constructor
         Args:
@@ -42,7 +40,8 @@ class Command:
         self.b = b
         self.l = l
         self.r = r
-        self.magnitude = self.parse_distance(dist) if dist is not None else None
+        self.magnitude = self.parse_distance(
+            dist) if dist is not None else None
         """
         Note: translation/rotational_multiplier are Cam's interpretation, not required/expected
         """
@@ -68,6 +67,7 @@ class Command:
 
     def __repr__(self):
         return '(f, b, l, r) = ({0}, {1}, {2}, {3}); magnitude = {4}'.format(self.f, self.b, self.l, self.r, self.magnitude)
+
 
 class CmdParser:
     def __init__(self, grammar, keywords, command_callback, keyword_callback=None):
@@ -129,7 +129,7 @@ class CmdParser:
         elif w == 5:
             # command_str = "go <dir1> and <dir2> <amt> <unit>"
             (dir1, dir2, amt, unit) = (words[0], words[2], words[3], words[4])
-        
+
         # Get first direction
         (f, b, l, r) = self.get_distance(f, b, l, r, dir1)
         # If second direction exists, get it
@@ -137,7 +137,7 @@ class CmdParser:
             (f, b, l, r) = self.get_distance(f, b, l, r, dir2)
         # If magnitude is specified, get it
         if amt is not None and unit is not None:
-            dist = Distance(word_to_num(amt), unit)
+            dist = Distance(self.__word_to_num(amt), unit)
         return Command(f, b, l, r, dist)
 
     def command_callback_st(self, command_str):
@@ -150,7 +150,8 @@ class CmdParser:
     def __start_listen(self):
         # Thread definition: run SR listen method until parser object is destroyed
         while self.run_thread:
-            self.st.start_listening(grammar=self.grammar,keywords=self.keywords,keyword_cb=self.keyword_callback, command_cb=self.command_callback_st)
+            self.st.start_listening(grammar=self.grammar, keywords=self.keywords,
+                                    keyword_cb=self.keyword_callback, command_cb=self.command_callback_st)
 
     def start(self):
         # Start the listener thread to receive commands from the speech recog model
@@ -160,6 +161,77 @@ class CmdParser:
         # Stop SR listener thread
         self.run_thread = False
         self.sr_thread.join()
+
+    def __word_to_num(self, textnum, numwords={}):
+        # Code borrowed from original at https://stackoverflow.com/a/493788 (@recursive)
+        if not numwords:
+            units = [
+                "zero", "one", "two", "three", "four", "five", "six", "seven", "eight",
+                "nine", "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen",
+                "sixteen", "seventeen", "eighteen", "nineteen",
+            ]
+
+            tens = ["", "", "twenty", "thirty", "forty",
+                    "fifty", "sixty", "seventy", "eighty", "ninety"]
+
+            scales = ["hundred", "thousand", "million", "billion", "trillion"]
+
+            numwords["and"] = (1, 0)
+            for idx, word in enumerate(units):
+                numwords[word] = (1, idx)
+            for idx, word in enumerate(tens):
+                numwords[word] = (1, idx * 10)
+            for idx, word in enumerate(scales):
+                numwords[word] = (10 ** (idx * 3 or 2), 0)
+
+        current = result = 0
+        for word in textnum.split():
+            if word not in numwords:
+                raise Exception("Illegal word: " + word)
+
+            scale, increment = numwords[word]
+            current = current * scale + increment
+            if scale > 100:
+                result += current
+                current = 0
+
+        return result + current
+
+
+def word_to_num(textnum, numwords={}):
+    # Code borrowed from original at https://stackoverflow.com/a/493788 (@recursive)
+    if not numwords:
+        units = [
+            "zero", "one", "two", "three", "four", "five", "six", "seven", "eight",
+            "nine", "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen",
+            "sixteen", "seventeen", "eighteen", "nineteen",
+        ]
+
+        tens = ["", "", "twenty", "thirty", "forty",
+                "fifty", "sixty", "seventy", "eighty", "ninety"]
+
+        scales = ["hundred", "thousand", "million", "billion", "trillion"]
+
+        numwords["and"] = (1, 0)
+        for idx, word in enumerate(units):
+            numwords[word] = (1, idx)
+        for idx, word in enumerate(tens):
+            numwords[word] = (1, idx * 10)
+        for idx, word in enumerate(scales):
+            numwords[word] = (10 ** (idx * 3 or 2), 0)
+
+    current = result = 0
+    for word in textnum.split():
+        if word not in numwords:
+            raise Exception("Illegal word: " + word)
+
+        scale, increment = numwords[word]
+        current = current * scale + increment
+        if scale > 100:
+            result += current
+            current = 0
+
+    return result + current
 
 
 if __name__ == "__main__":
