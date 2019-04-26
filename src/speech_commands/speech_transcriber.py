@@ -55,11 +55,17 @@ class SpeechTranscriber():
 
             # we need some special handling here to correctly print unicode characters to standard output
             # this version of Python uses bytes for strings (Python 2)
+            result = ''
             if str is bytes:
-                return u"{}".format(value).encode("utf-8")
+                result = u"{}".format(value).encode("utf-8")
             # this version of Python uses unicode for strings (Python 3+)
             else:
-                return "{}".format(value)
+                result = "{}".format(value)
+            
+            if grammar:
+                result = self.__remove_garbage(result)
+
+            return result
         except sr.UnknownValueError:
             return None
 
@@ -94,6 +100,18 @@ class SpeechTranscriber():
             keywords = [(keyword.strip(), sensitivity)
                         for keyword in f.readlines()]
             return keywords
+    
+    def __remove_garbage(self, command_str):
+        import re
+        """ Removes all garbage phonemes from a grammar search.
+        
+        Returns the string command or None is no command recognized
+        """
+        print(command_str)
+        regex = r'\s*?zz\d{1,2}\s*'
+        result = re.sub(regex, '', command_str)
+        if not result: result = None
+        return result
 
 
 if __name__ == "__main__":
@@ -115,7 +133,8 @@ if __name__ == "__main__":
         try:
             while True:
                 print(st._SpeechTranscriber__listen(
-                    keywords=os.path.join(data_path, "keywords.txt")))
+                    keywords=os.path.join(data_path, "keywords.txt"), 
+                    phrase_time_limit=3.0))
         except KeyboardInterrupt:
             pass
 
@@ -123,7 +142,8 @@ if __name__ == "__main__":
         try:
             while True:
                 print(st._SpeechTranscriber__listen(
-                    grammar=os.path.join(data_path, "commands.gram")))
+                    grammar=os.path.join(data_path, "commands.gram"),
+                    phrase_time_limit=5.0))
         except KeyboardInterrupt:
             pass
 

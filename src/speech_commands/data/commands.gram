@@ -20,14 +20,33 @@ you must delete the .fsg file that was generated in the same path.
 */
 
 grammar commands;
-public <commands> = go <direction> <distance>;
-<direction> = <updown> | <leftright> | <updown> and <leftright>;
+
+public <commands> = /1/ <garbage> |
+/1/ <robocmd> |
+/2/ <garbage> <robocmd> |
+/2/ <robocmd> <garbage> |
+/3/ <garbage> <robocmd> <garbage>;
+
+<robocmd> = /1/ (go <direction>) |
+/20000/ (go <direction> <distance>) |
+/1/ stop | 
+/1/ (turn <leftright>) |
+/20000/ (turn <leftright> <turnamount>);
+
+<direction> = <updown> | (<updown> and <leftright>);
 <updown> = forward | backward;
 <leftright> = left | right;
-<distance> = <number> <unit>;
-<number> = <ones> | ten;
-//<number> = <tens> <ones> | <tens> | <teens> | <ones> | ten;
-//<tens> = twenty | thirty | forty | fifty | sixty | seventy | eighty | ninety;
-//<teens> = eleven | twelve | thirteen | fourteen | fifteen | sixteen | seventeen | eighteen | nineteen;
+<distance> = (<ones> | ten) <distunit>;
+<turnamount> = <number> <turnunit>;
+<number> = (<tens> <ones>) | <tens> | <teens> | <ones> | ten;
+<tens> = twenty | thirty | forty | fifty | sixty | seventy | eighty | ninety;
+<teens> = eleven | twelve | thirteen | fourteen | fifteen | sixteen | seventeen | eighteen | nineteen;
 <ones> = one | two | three | four | five | six | seven | eight | nine;
-<unit> = meters | meter | feet | foot;
+<distunit> = meters | meter | feet | foot;
+<turnunit> = radians | degree | degrees;
+
+//garbage used to decrease the amount of false positives
+<garbage> = (zz1 | zz2 | zz3 | zz4 | zz5 | zz6 | zz7 | zz8 | zz9 | zz10 | 
+zz11 | zz12 | zz13 | zz14 | zz15 | zz16 | zz17 | zz18 | zz19 | zz20 | 
+zz21 | zz22 | zz23 | zz24 | zz25 | zz26 | zz27 | zz28 | zz29 | zz30 | 
+zz31 | zz32 | zz33 | zz34 | zz35 | zz36 | zz37 | zz38 | zz39 | zz30 | zz41)+;
