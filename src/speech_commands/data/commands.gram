@@ -21,19 +21,19 @@ you must delete the .fsg file that was generated in the same path.
 
 grammar commands;
 
-public <commands> = /1/ <garbage> |
-/1/ <robocmd> |
-/2/ <garbage> <robocmd> |
-/2/ <robocmd> <garbage> |
-/3/ <garbage> <robocmd> <garbage>;
+public <commands> = <garbage> |
+<robocmd> |
+<garbage> <robocmd> |
+<robocmd> <garbage> |
+<garbage> <robocmd> <garbage>;
 
-<robocmd> = /1/ (go <direction>) |
-/20000/ (go <direction> <distance>) |
+<robocmd> = (/0.1/ go <direction>) |
+(/1/ go <direction> <distance>) |
 /1/ stop | 
-/1/ (turn <leftright>) |
-/20000/ (turn <leftright> <turnamount>);
+(/0.1/ turn <leftright>) |
+(/1/ turn <leftright> <turnamount>);
 
-<direction> = /1/ <updown> | /20000/ (<updown> and <leftright>);
+<direction> = <updown> | (<updown> and <leftright>);
 <updown> = forward | backward;
 <leftright> = left | right;
 <distance> = (<ones> | ten) <distunit>;
@@ -46,7 +46,7 @@ public <commands> = /1/ <garbage> |
 <turnunit> = radians | degree | degrees;
 
 //garbage used to decrease the amount of false positives (matches phonemes)
-<garbage> = (zz1 | zz2 | zz3 | zz4 | zz5 | zz6 | zz7 | zz8 | zz9 | zz10 | 
-zz11 | zz12 | zz13 | zz14 | zz15 | zz16 | zz17 | zz18 | zz19 | zz20 | 
-zz21 | zz22 | zz23 | zz24 | zz25 | zz26 | zz27 | zz28 | zz29 | zz30 | 
-zz31 | zz32 | zz33 | zz34 | zz35 | zz36 | zz37 | zz38 | zz39 | zz30 | zz41)+;
+<garbage> = (/0.01/ zz1 | /0.01/ zz2 | /0.01/ zz3 | /0.01/ zz4 | /0.01/ zz5 | /0.01/ zz6 | /0.01/ zz7 | /0.01/ zz8 | /0.01/ zz9 | /0.01/ zz10 | 
+/0.01/ zz11 | /0.01/ zz12 | /0.01/ zz13 | /0.01/ zz14 | /0.01/ zz15 | /0.01/ zz16 | /0.01/ zz17 | /0.01/ zz18 | /0.01/ zz19 | /0.01/ zz20 | 
+/0.01/ zz21 | /0.01/ zz22 | /0.01/ zz23 | /0.01/ zz24 | /0.01/ zz25 | /0.01/ zz26 | /0.01/ zz27 | /0.01/ zz28 | /0.01/ zz29 | /0.01/ zz30 | 
+/0.01/ zz31 | /0.01/ zz32 | /0.01/ zz33 | /0.01/ zz34 | /0.01/ zz35 | /0.01/ zz36 | /0.01/ zz37 | /0.01/ zz38 | /0.01/ zz39 | /0.01/ zz30 | /0.01/ zz41)+;
