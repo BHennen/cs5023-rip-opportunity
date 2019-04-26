@@ -1,5 +1,4 @@
 from speech_transcriber import SpeechTranscriber
-# from word2number import w2n
 import math
 import threading
 
@@ -67,9 +66,19 @@ class Command:
 
     def __repr__(self):
         return '(f, b, l, r) = ({0}, {1}, {2}, {3}); magnitude = {4}'.format(self.f, self.b, self.l, self.r, self.magnitude)
+    
+    __str__ = __repr__
 
 
 class CmdParser:
+    """ CmdParser is used to listen for commands and calls two callback when a keyword is heard
+    and when a command is heard.
+
+    If a keyword is detected, the keyword callback is executed with the keyword string detected sent to the callback function.
+    Then, if valid keyword detected, the command callback is executed with a new command object sent to the callback function.
+
+    Both can call the callbacks with value of None if no keyword or command was detected in time.
+    """
     def __init__(self, grammar, keywords, command_callback, keyword_callback=None):
         """ CmdParser constructor
         Args:
@@ -90,7 +99,7 @@ class CmdParser:
         """
         self.sr_thread = threading.Thread(target=self.__start_listen, args=())
         self.run_thread = True
-        pass
+
 
     def __del__(self):
         # Stop listener thread
@@ -134,25 +143,29 @@ class CmdParser:
         return Command(f, b, l, r, dist)
 
     def __command_callback_st(self, command_str):
-        # Construct command object
-        cmd = self.make_command(command_str)
+        cmd = None
+        if command_str is not None:
+            # Construct command object
+            cmd = self.make_command(command_str)
         # Call client's callback with it.
         self.command_callback(cmd)
 
     def __start_listen(self):
         # Thread definition: run SR listen method until parser object is destroyed
-        while self.run_thread:
-            self.st.start_listening(grammar=self.grammar, keywords=self.keywords,
-                                    keyword_cb=self.keyword_callback, command_cb=self.__command_callback_st)
+            while self.run_thread:
+                self.st.start_listening(grammar=self.grammar, keywords=self.keywords,
+                                        keyword_cb=self.keyword_callback, command_cb=self.__command_callback_st)
+
 
     def start(self):
         # Start the listener thread to receive commands from the speech recog model
+        self.run_thread = True
         self.sr_thread.start()
 
     def stop(self):
         # Stop SR listener thread
         self.run_thread = False
-        self.sr_thread.join()
+        # self.sr_thread.join() #No need to wait until thread is done
 
     def __word_to_num(self, textnum, numwords={}):
         # Code borrowed from original at https://stackoverflow.com/a/493788 (@recursive)
@@ -190,37 +203,76 @@ class CmdParser:
         return result + current
 
 if __name__ == "__main__":
-    print("*"*25 + "Testing command parser" + "*"*25)
-    cp = CmdParser(None, None, None, None)
-    print("Created instance.")
-    test_str = 'go forward and right eight meters'
-    print("Test string: "+test_str)
-    print(str(cp.make_command(test_str)))
-    test_str = 'go backward and right six feet'
-    print("Test string: "+test_str)
-    print(str(cp.make_command(test_str)))
-    test_str = 'go backward and left one meter'
-    print("Test string: "+test_str)
-    print(str(cp.make_command(test_str)))
-    test_str = 'go left three foot'
-    print("Test string: "+test_str)
-    print(str(cp.make_command(test_str)))
-    test_str = 'go forward'
-    print("Test string: "+test_str)
-    print(str(cp.make_command(test_str)))
-    test_str = 'turn left three degrees'
-    print("Test string: "+test_str)
-    print(str(cp.make_command(test_str)))
-    test_str = 'turn right one hundred and sixty degrees'
-    print("Test string: "+test_str)
-    print(str(cp.make_command(test_str)))
-    test_str = 'turn right three hundred five degree'
-    print("Test string: "+test_str)
-    print(str(cp.make_command(test_str)))
-    test_str = 'turn right'
-    print("Test string: "+test_str)
-    print(str(cp.make_command(test_str)))
-    test_str = 'stop'
-    print("Test string: "+test_str)
-    print(str(cp.make_command(test_str)))
-    print("*"*25 + "Done testing command parser" + "*"*25)
+    # Use by calling: python command_parser.py [text|speech]
+    import sys
+
+    if len(sys.argv) > 1:
+        test = sys.argv[1]
+    else:
+        test = 'speech'
+
+    if test == 'text':
+        print("*"*25 + "Testing command parser" + "*"*25)
+        cp = CmdParser(None, None, None, None)
+        print("Created instance.")
+        test_str = 'go forward and right eight meters'
+        print("Test string: "+test_str)
+        print(str(cp.make_command(test_str)))
+        test_str = 'go backward and right six feet'
+        print("Test string: "+test_str)
+        print(str(cp.make_command(test_str)))
+        test_str = 'go backward and left one meter'
+        print("Test string: "+test_str)
+        print(str(cp.make_command(test_str)))
+        test_str = 'go left three foot'
+        print("Test string: "+test_str)
+        print(str(cp.make_command(test_str)))
+        test_str = 'go forward'
+        print("Test string: "+test_str)
+        print(str(cp.make_command(test_str)))
+        test_str = 'turn left three degrees'
+        print("Test string: "+test_str)
+        print(str(cp.make_command(test_str)))
+        test_str = 'turn right one hundred and sixty degrees'
+        print("Test string: "+test_str)
+        print(str(cp.make_command(test_str)))
+        test_str = 'turn right three hundred five degree'
+        print("Test string: "+test_str)
+        print(str(cp.make_command(test_str)))
+        test_str = 'turn right'
+        print("Test string: "+test_str)
+        print(str(cp.make_command(test_str)))
+        test_str = 'stop'
+        print("Test string: "+test_str)
+        print(str(cp.make_command(test_str)))
+        print("*"*25 + "Done testing command parser" + "*"*25)
+    elif test == 'speech':
+        import os, time
+        def keyword_cb(keyword_str):
+            out = ''
+            if keyword_str:
+                out = "Keyword detected: {}".format(keyword_str)
+            else:
+                out = "No keyword detected!"
+            print(out)
+        
+        def command_cb(command_obj):
+            out = ''
+            if command_obj:
+                out = "Command detected: {}".format(command_obj)
+            else:
+                out = "No command detected!"
+            print(out)
+
+        data_path = os.path.join(os.path.dirname(
+            os.path.realpath(__file__)), "data")
+        keywords_path = os.path.join(data_path, "keywords.txt")
+        grammar_path = os.path.join(data_path, "commands.gram")
+        parser = CmdParser(grammar=grammar_path, keywords=keywords_path, command_callback=command_cb, keyword_callback=keyword_cb)
+        parser.start()
+        try:
+            while True:
+                # Simulate bot action
+                time.sleep(0.1) 
+        except KeyboardInterrupt:
+            parser.stop()
