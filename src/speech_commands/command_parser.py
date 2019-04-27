@@ -1,6 +1,7 @@
 from speech_transcriber import SpeechTranscriber
 import math
 import threading
+import os
 
 FEET_2_METERS = 0.3048
 
@@ -276,7 +277,6 @@ if __name__ == "__main__":
         print(str(cp.make_command(test_str)))
         print("*"*25 + "Done testing command parser" + "*"*25)
     elif test == 'speech' or test == "speech-loop":
-        import os
         import time
         last_kwd = None
         last_cmd = None
