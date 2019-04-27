@@ -81,7 +81,7 @@ class CmdParser:
     Both can call the callbacks with value of None if no keyword or command was detected in time.
     """
 
-    def __init__(self, grammar, keywords, command_callback, keyword_callback=None, loop_until_command=False):
+    def __init__(self, command_callback, keyword_callback=None, grammar=None, keywords=None, loop_until_command=False):
         """ CmdParser constructor
         Args:
             grammar: string - path to grammar file
@@ -93,8 +93,12 @@ class CmdParser:
         self.st = SpeechTranscriber()
         self.keyword_callback = keyword_callback
         self.command_callback = command_callback
-        self.grammar = grammar
-        self.keywords = keywords
+        data_path = os.path.join(os.path.dirname(
+            os.path.realpath(__file__)), "data")
+        keywords_path = os.path.join(data_path, "keywords.txt")
+        grammar_path = os.path.join(data_path, "commands.gram")
+        self.grammar = grammar if grammar is not None else grammar_path
+        self.keywords = keywords if keywords is not None else keywords_path
         self.loop_until_command = loop_until_command
         """
         Fields:
@@ -298,13 +302,8 @@ if __name__ == "__main__":
                 out = "No command detected!"
             print("Parse Thread - " + out)
 
-        data_path = os.path.join(os.path.dirname(
-            os.path.realpath(__file__)), "data")
-        keywords_path = os.path.join(data_path, "keywords.txt")
-        grammar_path = os.path.join(data_path, "commands.gram")
         loop = test == "speech-loop"
-        parser = CmdParser(grammar=grammar_path, keywords=keywords_path,
-                           command_callback=command_cb, keyword_callback=keyword_cb, loop_until_command=loop)
+        parser = CmdParser(command_callback=command_cb, keyword_callback=keyword_cb, loop_until_command=loop)
         parser.start()
         try:
             while True:
