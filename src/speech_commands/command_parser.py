@@ -249,7 +249,7 @@ if __name__ == "__main__":
         test_str = 'go backward and left one meter'
         print("Test string: "+test_str)
         print(str(cp.make_command(test_str)))
-        test_str = 'go left three foot'
+        test_str = 'turn left three foot'
         print("Test string: "+test_str)
         print(str(cp.make_command(test_str)))
         test_str = 'go forward'
