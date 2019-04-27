@@ -17,17 +17,35 @@ If you want to change the grammar but have already run the program,
 you must delete the .fsg file that was generated in the same path.
 (this is automatically generated if not already existing, but not updated)
 
+Weights must be between 0 and 1
 */
 
 grammar commands;
-public <commands> = go <direction> <distance>;
-<direction> = <updown> | <leftright> | <updown> and <leftright>;
+
+public <commands> = [[<garbage>] [<robocmd>] [<garbage>]];
+
+<robocmd> = (/0.1/ go <direction>) |
+(/1/ go <direction> <distance>) |
+/1/ stop | 
+(/0.1/ turn <leftright>) |
+(/1/ turn <leftright> <turnamount>);
+
+<direction> = <updown> | (<updown> and <leftright>);
 <updown> = forward | backward;
 <leftright> = left | right;
-<distance> = <number> <unit>;
-<number> = <ones> | ten;
-//<number> = <tens> <ones> | <tens> | <teens> | <ones> | ten;
-//<tens> = twenty | thirty | forty | fifty | sixty | seventy | eighty | ninety;
-//<teens> = eleven | twelve | thirteen | fourteen | fifteen | sixteen | seventeen | eighteen | nineteen;
+<distance> = (<ones> | ten) <distunit>;
+<turnamount> = <number> <turnunit>;
+<number> = <lt100> | <hundreds>;
+<hundreds> = <ones> hundred [and] [<lt100>];
+<lt100> = <ones> | <teens> | <tens> [<ones>];
+<tens> = (twenty | thirty | forty | fifty | sixty | seventy | eighty | ninety) [<ones>] | ten;
+<teens> = eleven | twelve | thirteen | fourteen | fifteen | sixteen | seventeen | eighteen | nineteen;
 <ones> = one | two | three | four | five | six | seven | eight | nine;
-<unit> = meters | meter | feet | foot;
+<distunit> = meters | meter | feet | foot;
+<turnunit> = radians | degree | degrees;
+
+//garbage used to decrease the amount of false positives (matches phonemes)
+<garbage> = (/0.01/ zz1 | /0.01/ zz2 | /0.01/ zz3 | /0.01/ zz4 | /0.01/ zz5 | /0.01/ zz6 | /0.01/ zz7 | /0.01/ zz8 | /0.01/ zz9 | /0.01/ zz10 | 
+/0.01/ zz11 | /0.01/ zz12 | /0.01/ zz13 | /0.01/ zz14 | /0.01/ zz15 | /0.01/ zz16 | /0.01/ zz17 | /0.01/ zz18 | /0.01/ zz19 | /0.01/ zz20 | 
+/0.01/ zz21 | /0.01/ zz22 | /0.01/ zz23 | /0.01/ zz24 | /0.01/ zz25 | /0.01/ zz26 | /0.01/ zz27 | /0.01/ zz28 | /0.01/ zz29 | /0.01/ zz30 | 
+/0.01/ zz31 | /0.01/ zz32 | /0.01/ zz33 | /0.01/ zz34 | /0.01/ zz35 | /0.01/ zz36 | /0.01/ zz37 | /0.01/ zz38 | /0.01/ zz39 | /0.01/ zz30 | /0.01/ zz41)+;

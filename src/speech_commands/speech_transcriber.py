@@ -1,10 +1,22 @@
 import speech_recognition as sr
+import os
 
 
 class SpeechTranscriber():
     def __init__(self):
         self.r = sr.Recognizer()
         self.m = sr.Microphone()
+
+        # Get language data
+        language_directory = os.path.join(os.path.dirname(os.path.realpath(__file__)), "data", "language")
+        if not os.path.isdir(language_directory):
+            raise Exception("missing language data directory: \"{}\"".format(language_directory))
+        acoustic_parameters_directory = os.path.join(language_directory, "acoustic-model")
+        language_model_file = os.path.join(language_directory, "language-model.lm.bin")
+        phoneme_dictionary_file = os.path.join(language_directory, "pronounciation-dictionary.dict")
+        self.language = (acoustic_parameters_directory, language_model_file, phoneme_dictionary_file)
+
+        # Adjust for ambient noise
         print("A moment of silence, please...")
         with self.m as source:
             self.r.adjust_for_ambient_noise(source)
@@ -21,15 +33,16 @@ class SpeechTranscriber():
                 "Must specify grammar file path and keywords file.")
 
         # Listen for keyword
-        keyword = self.__listen(keywords=keywords, phrase_time_limit=3.0)
-        if keyword is not None:
+        keyword = self.listen(keywords=keywords, phrase_time_limit=3.0)
+        if callable(keyword_cb):
             keyword_cb(keyword)
+        if keyword is not None:            
             # listen for command phrase using grammar, then pass it to the callback
-            command = self.__listen(grammar=grammar, phrase_time_limit=5.0)
-            if command is not None:
+            command = self.listen(grammar=grammar, phrase_time_limit=5.0)
+            if callable(command_cb):
                 command_cb(command)
 
-    def __listen(self, grammar=None, keywords=None, timeout=None, phrase_time_limit=None):
+    def listen(self, grammar=None, keywords=None, timeout=None, phrase_time_limit=None):
         '''
         Listen to a user using either a grammar or keyword entries
         Returns the first keyword or command found as a string.
@@ -47,23 +60,28 @@ class SpeechTranscriber():
         try:
             if grammar:
                 value = self.r.recognize_sphinx(
-                    audio_data=audio, grammar=grammar)
+                    audio_data=audio, grammar=grammar, language=self.language)
             elif keywords:
                 value = self.r.recognize_sphinx(
-                    audio_data=audio, keyword_entries= self.__generate_keywords(keywords))
+                    audio_data=audio, keyword_entries=self.__generate_keywords(keywords), language=self.language)
 
             # we need some special handling here to correctly print unicode characters to standard output
             # this version of Python uses bytes for strings (Python 2)
+            result = ''
             if str is bytes:
-                return u"{}".format(value).encode("utf-8")
+                result = u"{}".format(value).encode("utf-8")
             # this version of Python uses unicode for strings (Python 3+)
             else:
-                return "{}".format(value)
+                result = "{}".format(value)
+            
+            if grammar:
+                result = self.__remove_garbage(result)
+
+            return result
         except sr.UnknownValueError:
             return None
 
     def __generate_keywords(self, path):
-        import os
         class Hack:
             # sensitivity = 1  --> best you can do without editing line 769 of __init__.py of speech_recognition library
             # or you can hack some stuff; this will make sensitivity 1e[Hack.val]
@@ -93,12 +111,22 @@ class SpeechTranscriber():
             keywords = [(keyword.strip(), sensitivity)
                         for keyword in f.readlines()]
             return keywords
+    
+    def __remove_garbage(self, command_str):
+        import re
+        """ Removes all garbage phonemes from a grammar search.
+        
+        Returns the string command or None is no command recognized
+        """
+        regex = r'\s*?zz\d{1,2}\s*'
+        result = re.sub(regex, '', command_str)
+        if not result: result = None
+        return result
 
 
 if __name__ == "__main__":
     # Use by calling: python speech_transcriber.py [keywords|grammar]
     import sys
-    import os
 
     if len(sys.argv) > 1:
         test = sys.argv[1]
@@ -113,16 +141,18 @@ if __name__ == "__main__":
         # run keywords/hotwords test
         try:
             while True:
-                print(st._SpeechTranscriber__listen(
-                    keywords=os.path.join(data_path, "keywords.txt")))
+                print(st.listen(
+                    keywords=os.path.join(data_path, "keywords.txt"), 
+                    phrase_time_limit=3.0))
         except KeyboardInterrupt:
             pass
 
     elif test == 'grammar':
         try:
             while True:
-                print(st._SpeechTranscriber__listen(
-                    grammar=os.path.join(data_path, "commands.gram")))
+                print(st.listen(
+                    grammar=os.path.join(data_path, "commands.gram"),
+                    phrase_time_limit=5.0))
         except KeyboardInterrupt:
             pass
 
