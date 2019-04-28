@@ -72,7 +72,7 @@ class CommandHandler:
         """ Math
 
         """
-        if command.magnitude != 0:
+        if command.magnitude:
             # Non-cardinal (arc) movement
             return math.sqrt(2) * linear_velocity / command.magnitude
         else:
