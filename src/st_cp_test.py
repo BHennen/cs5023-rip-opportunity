@@ -66,8 +66,6 @@ def handle_that_command(cmd):
     else:
         if debug:
             print("Command received: {}".format(cmd))
-
-        if debug:
             print("Doing command: "+str(cmd))
 
         def update_vel(twist_obj):

@@ -101,5 +101,5 @@ class CommandHandler:
 
             # Accumulate angle traveled
             diff = abs(self.current_yaw - self.prev_yaw)
-            angle = 360-diff if diff > 180 else diff
+            angle = (2*math.pi)-diff if diff > math.pi else diff
             self.current_magnitude += angle
