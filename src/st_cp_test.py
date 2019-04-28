@@ -1,4 +1,4 @@
-from speech_commands import speech_transcriber, command_parser
+from speech_commands.command_parser import CommandParser
 import math
 import rospy
 from keyboard import RoboKeyboardControl
@@ -346,9 +346,10 @@ def start_bot():
 
 if __name__ == "__main__":
     parser = command_parser.CmdParser(command_callback=handle_that_command,
-                       keyword_callback=handle_that_keyword, loop_until_command=True)
+                                      keyword_callback=handle_that_keyword, loop_until_command=True)
     parser.start()
     try:
         start_bot()
     except rospy.ROSInterruptException:
-        parser.stop()
+        pass
+    parser.stop()

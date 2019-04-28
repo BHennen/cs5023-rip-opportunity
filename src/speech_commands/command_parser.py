@@ -71,8 +71,8 @@ class Command:
     __str__ = __repr__
 
 
-class CmdParser:
-    """ CmdParser is used to listen for commands and calls two callback when a keyword is heard
+class CommandParser:
+    """ CommandParser is used to listen for commands and calls two callback when a keyword is heard
     and when a command is heard.
 
     If a keyword is detected, the keyword callback is executed with the keyword string detected sent to the callback function.
@@ -83,7 +83,7 @@ class CmdParser:
     """
 
     def __init__(self, command_callback, keyword_callback=None, grammar=None, keywords=None, loop_until_command=False):
-        """ CmdParser constructor
+        """ CommandParser constructor
         Args:
             grammar: string - path to grammar file
             keywords: string - path to keywords file
@@ -243,7 +243,7 @@ if __name__ == "__main__":
 
     if test == 'text':
         print("*"*25 + "Testing command parser" + "*"*25)
-        cp = CmdParser(None, None, None, None)
+        cp = CommandParser(None, None, None, None)
         print("Created instance.")
         test_str = 'go forward and right eight meters'
         print("Test string: "+test_str)
@@ -303,7 +303,7 @@ if __name__ == "__main__":
             print("Parse Thread - " + out)
 
         loop = test == "speech-loop"
-        parser = CmdParser(command_callback=command_cb, keyword_callback=keyword_cb, loop_until_command=loop)
+        parser = CommandParser(command_callback=command_cb, keyword_callback=keyword_cb, loop_until_command=loop)
         parser.start()
         try:
             while True:
