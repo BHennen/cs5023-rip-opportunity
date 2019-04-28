@@ -345,8 +345,8 @@ def start_bot():
 
 
 if __name__ == "__main__":
-    parser = command_parser.CmdParser(command_callback=handle_that_command,
-                                      keyword_callback=handle_that_keyword, loop_until_command=True)
+    parser = CommandParser(command_callback=handle_that_command,
+                           keyword_callback=handle_that_keyword, loop_until_command=True)
     parser.start()
     try:
         start_bot()

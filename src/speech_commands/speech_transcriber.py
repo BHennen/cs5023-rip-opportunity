@@ -125,7 +125,7 @@ class SpeechTranscriber():
 
 
 if __name__ == "__main__":
-    # Use by calling: python speech_transcriber.py [keywords|grammar]
+    # Use by calling: python speech_transcriber.py [keywords|grammar|both]
     import sys
 
     if len(sys.argv) > 1:
