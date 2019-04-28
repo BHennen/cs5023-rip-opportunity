@@ -105,7 +105,7 @@ class SpeechTranscriber():
             def __le__(self, o):
                 return True
 
-        sensitivity = Hack(-3) #Todo: make keywords have individual sensitivities (if desired)
+        sensitivity = Hack(-3) #TODO: make keywords have individual sensitivities (if desired)
         keywords = []
         with open(path, 'r') as f:
             keywords = [(keyword.strip(), sensitivity)
