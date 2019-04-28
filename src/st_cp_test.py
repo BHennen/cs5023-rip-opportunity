@@ -50,8 +50,10 @@ keys = None
 # Odom variables
 prev_pos = None
 
-# Turn variables
-turn_handler = None
+# Parser
+parser = None
+
+# Command Handler
 commhandler = None
 
 
@@ -65,10 +67,17 @@ def handle_that_command(cmd):
         if debug:
             print("Command received: {}".format(cmd))
 
-        print("Doing command: "+str(cmd))
+        if debug:
+            print("Doing command: "+str(cmd))
+
+        def update_vel(twist_obj):
+            global vel_msg
+            vel_msg = twist_obj
+
         # Unconditionally set inhibitor
         keyword_inhibitor = False
-        commhandler.start_command(cmd)
+        commhandler.start_command(
+            cmd, default_forward_velocity, default_a_velocity, update_vel)
         command_inhibitor = True
 
 
@@ -201,17 +210,14 @@ def do_idle():
 
 
 def do_command():
+    # Keep calling continue_command until done_cb is called
     global commhandler
-
-    def update_vel(twist_obj):
-        global vel_msg
-        vel_msg = twist_obj
 
     def done_cb():
         global command_inhibitor
         command_inhibitor = False
-        
-    commhandler.continue_command(update_vel, done_cb)
+
+    commhandler.continue_command(done_cb)
 
 
 def do_keyword():
@@ -257,7 +263,7 @@ def start_bot():
 
     """
 
-    global kill, keys, turn_handler, commhandler
+    global kill, keys, commhandler, parser
     # Init subscribers
     rospy.Subscriber('mobile_base/events/bumper',
                      BumperEvent,
@@ -267,7 +273,10 @@ def start_bot():
     rospy.init_node('cs5023_rip_opportunity', anonymous=True)
     # Init keyboard
     keys = RoboKeyboardControl()
-    commhandler = CommandHandler(default_forward_velocity, default_a_velocity)
+    # Init command handler
+    commhandler = CommandHandler()
+    # Start async command parser
+    parser.start()
 
     # Keep program alive
     while not rospy.is_shutdown() and not kill:
@@ -277,9 +286,9 @@ def start_bot():
 
 
 if __name__ == "__main__":
+    global parser
     parser = CommandParser(command_callback=handle_that_command,
                            keyword_callback=handle_that_keyword, loop_until_command=True)
-    parser.start()
     try:
         start_bot()
     except rospy.ROSInterruptException:
