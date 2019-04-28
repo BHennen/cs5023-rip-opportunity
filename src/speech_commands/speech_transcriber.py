@@ -104,6 +104,12 @@ class SpeechTranscriber():
 
             def __le__(self, o):
                 return True
+            
+            __lt__ = __le__
+            __eq__ = __le__
+            __ne__ = __le__
+            __ge__ = __le__
+            __gt__ = __le__
 
         sensitivity = Hack(-3) #TODO: make keywords have individual sensitivities (if desired)
         keywords = []
