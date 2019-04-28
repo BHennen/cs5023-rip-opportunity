@@ -17,10 +17,10 @@ from sensor_msgs.msg import LaserScan
 from nav_msgs.msg import Odometry
 
 from speech_commands.command_parser import CommandParser
+from speech_commands.command_handler import CommandHandler
 import math
 import rospy
 from keyboard import RoboKeyboardControl
-from tf.transformations import euler_from_quaternion
 
 # Twist object used for pushing to nav node
 from geometry_msgs.msg import Twist
@@ -55,100 +55,6 @@ prev_pos = None
 # Turn variables
 turn_handler = None
 commhandler = None
-
-
-class CommandHandler:
-    def __init__(self):
-        self.command = None
-        self.vel_msg = None
-        self.current_distance = 0
-        self.current_pose = None
-        self.prev_pose = None
-        self.goal_distance = None
-        self.prev_yaw = None
-        self.current_yaw = None
-        self.total_angle = 0
-
-    def start_command(self, command, linear_velocity=default_forward_velocity):
-        self.command = command
-        print("Starting execution of command "+str(command))
-
-        # Set translational
-        trans_vel = 1 if command.f else -1 if command.b else 0
-        # Set rotational
-        ang_vel_mult = 1 if command.r else -1 if command.l else 0
-        ang_vel = self.__get_a_vel(command, linear_velocity)
-
-        self.vel_msg = Twist(x=trans_vel * linear_velocity,
-                             az=ang_vel_mult * ang_vel)
-        self.goal_distance = command.magnitude
-
-        # Reset pose and accumulators
-        self.current_distance = 0
-        self.current_pose = None
-        self.prev_pose = None
-        self.total_angle = 0
-        self.prev_yaw = None
-        self.current_yaw = None
-
-    def continue_command(self):
-        """ Checks distance from origin position
-
-        """
-        global command_inhibitor
-        if command_inhibitor:
-            # Update velocity
-            set_vel(self.vel_msg)
-            # Check if goal reached
-            if self.goal_distance:
-                self.__update_distance()
-                if self.current_distance >= self.goal_distance:
-                    command_inhibitor = False
-
-    def update_pose(self, pose):
-        """
-        Called by async odom handler
-        """
-        if self.prev_pose is None:
-            self.prev_pose = pose
-        else:
-            self.prev_pose = self.current_pose
-        self.current_pose = pose
-
-    def __get_a_vel(self, command, linear_velocity):
-        """ Math
-
-        """
-        if command.magnitude != 0:
-            # Non-cardinal (arc) movement
-            return math.sqrt(2) * linear_velocity / command.magnitude
-        else:
-            # Stationary rotation
-            return default_a_velocity
-
-    def __update_distance(self):
-        if self.current_pose is None or self.prev_pose is None:
-            # Return if odom hasn't updated our pose yet
-            return
-        if self.command.f or self.command.b:
-            # calculate translational distance
-            dx = (self.current_pose.position.x - self.prev_pose.position.x)
-            dy = (self.current_pose.position.y - self.prev_pose.position.y)
-            self.current_distance += math.hypot(dx, dy)
-        else:
-            # calculate rotational distance
-            self.prev_yaw = self.current_yaw
-            quat = self.current_pose.orientation
-            (roll, pitch, yaw) = euler_from_quaternion(
-                [quat.x, quat.y, quat.z, quat.w])
-            self.current_yaw = yaw
-            if self.prev_yaw is None:
-                return
-
-            # Accumulate angle travelled
-            diff = abs(self.current_yaw - self.prev_yaw)
-            angle = 360-diff if diff > 180 else diff
-            self.total_angle += angle
 
 
 def handle_that_command(cmd):
@@ -297,7 +203,14 @@ def do_idle():
 
 
 def do_command():
-    commhandler.continue_command()
+    global commhandler
+    def update_vel(twist_obj):
+        global vel_msg
+        vel_msg = twist_obj
+    def done_cb():
+        global command_inhibitor
+        command_inhibitor = False
+    commhandler.continue_command(update_vel, done_cb)
 
 
 def do_keyword():
@@ -353,7 +266,7 @@ def start_bot():
     rospy.init_node('cs5023_rip_opportunity', anonymous=True)
     # Init keyboard
     keys = RoboKeyboardControl()
-    commhandler = CommandHandler()
+    commhandler = CommandHandler(default_forward_velocity, default_a_velocity)
 
     # Keep program alive
     while not rospy.is_shutdown() and not kill:
