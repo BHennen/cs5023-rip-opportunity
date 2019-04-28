@@ -315,8 +315,6 @@ def do_bot_logic():
     # Publish movement
     nav_pub.publish(vel_msg)
 
-    print("Main Thread - last kwd: {}\t last cmd: {}".format(last_kwd, last_cmd))
-
 
 def start_bot():
     """ Maintains the "alive" status of the robot.
@@ -346,15 +344,8 @@ def start_bot():
         rospy.sleep(SLEEP_AMT)
 
 
-#######################
-# START BRYCE CODE    #
-#######################
 if __name__ == "__main__":
-    # Make Command Parser
-    last_kwd = None
-    last_cmd = None
-
-    parser = CmdParser(command_callback=handle_that_command,
+    parser = command_parser.CmdParser(command_callback=handle_that_command,
                        keyword_callback=handle_that_keyword, loop_until_command=True)
     parser.start()
     try:
