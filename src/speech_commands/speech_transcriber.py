@@ -8,13 +8,19 @@ class SpeechTranscriber():
         self.m = sr.Microphone()
 
         # Get language data
-        language_directory = os.path.join(os.path.dirname(os.path.realpath(__file__)), "data", "language")
+        language_directory = os.path.join(os.path.dirname(
+            os.path.realpath(__file__)), "data", "language")
         if not os.path.isdir(language_directory):
-            raise Exception("missing language data directory: \"{}\"".format(language_directory))
-        acoustic_parameters_directory = os.path.join(language_directory, "acoustic-model")
-        language_model_file = os.path.join(language_directory, "language-model.lm.bin")
-        phoneme_dictionary_file = os.path.join(language_directory, "pronounciation-dictionary.dict")
-        self.language = (acoustic_parameters_directory, language_model_file, phoneme_dictionary_file)
+            raise Exception(
+                "missing language data directory: \"{}\"".format(language_directory))
+        acoustic_parameters_directory = os.path.join(
+            language_directory, "acoustic-model")
+        language_model_file = os.path.join(
+            language_directory, "language-model.lm.bin")
+        phoneme_dictionary_file = os.path.join(
+            language_directory, "pronounciation-dictionary.dict")
+        self.language = (acoustic_parameters_directory,
+                         language_model_file, phoneme_dictionary_file)
 
         # Adjust for ambient noise
         print("A moment of silence, please...")
@@ -111,7 +117,8 @@ class SpeechTranscriber():
             __ge__ = __le__
             __gt__ = __le__
 
-        sensitivity = Hack(-3) #TODO: make keywords have individual sensitivities (if desired)
+        # TODO: make keywords have individual sensitivities (if desired)
+        sensitivity = Hack(-3)
         keywords = []
         with open(path, 'r') as f:
             keywords = [(keyword.strip(), sensitivity)
@@ -124,9 +131,11 @@ class SpeechTranscriber():
         
         Returns the string command or None is no command recognized
         """
-        regex = r'\s*?zz\d{1,2}\s*'
+        regex = r'zz\d{1,2}\s*'
         result = re.sub(regex, '', command_str)
-        if not result: result = None
+        result = result.strip()
+        if not result:
+            result = None
         return result
 
 
@@ -165,13 +174,15 @@ if __name__ == "__main__":
     elif test == 'both':
         def test1(speech):
             print("keyword is: {}".format(speech))
+
         def test2(speech):
             print("command is: {}".format(speech))
 
         try:
             while True:
                 st.start_listening(grammar=os.path.join(data_path, "commands.gram"),
-                                keywords=os.path.join(data_path, "keywords.txt"),
+                                   keywords=os.path.join(
+                                       data_path, "keywords.txt"),
                                    keyword_cb=test1, command_cb=test2)
 
         except KeyboardInterrupt:
