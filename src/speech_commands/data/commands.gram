@@ -24,10 +24,10 @@ grammar commands;
 
 public <commands> = [[<garbage>] [<robocmd>] [<garbage>]];
 
-<robocmd> = (/0.1/ go <direction>) |
+<robocmd> = (/0.01/ go <direction>) |
 (/1/ go <direction> <distance>) |
-/1/ stop | 
-(/0.1/ turn <leftright>) |
+/1/ stop moving |
+(/0.01/ turn <leftright>) |
 (/1/ turn <leftright> <turnamount>);
 
 <direction> = <updown> | (<updown> and <leftright>);
