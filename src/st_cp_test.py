@@ -1,8 +1,15 @@
 #!/usr/bin/env python
-import rospy
+# User libs
+from keyboard import RoboKeyboardControl
+from speech_commands.command_parser import CommandParser
+from speech_commands.command_handler import CommandHandler
+
+# Python libs
 import random as rand
 import math
-from keyboard import RoboKeyboardControl
+
+# Ros libs
+import rospy
 
 # Twist object used for pushing to nav node
 from geometry_msgs.msg import Twist
@@ -15,15 +22,6 @@ from sensor_msgs.msg import LaserScan
 
 # Detect odometry events
 from nav_msgs.msg import Odometry
-
-from speech_commands.command_parser import CommandParser
-from speech_commands.command_handler import CommandHandler
-import math
-import rospy
-from keyboard import RoboKeyboardControl
-
-# Twist object used for pushing to nav node
-from geometry_msgs.msg import Twist
 
 SLEEP_AMT = 0.1
 
@@ -204,12 +202,15 @@ def do_idle():
 
 def do_command():
     global commhandler
+
     def update_vel(twist_obj):
         global vel_msg
         vel_msg = twist_obj
+
     def done_cb():
         global command_inhibitor
         command_inhibitor = False
+        
     commhandler.continue_command(update_vel, done_cb)
 
 
