@@ -25,7 +25,7 @@ class Command:
         l: bool - indicates if left rotation is enabled
         r: bool - indicates if right rotation is enabled
         magnitude: float - indicates amount of units to move (meters/radians); None if not specified
-        raw: string - raw spoken string that generated the command
+        command_str: string - spoken string that generated the command
     """
 
     def __init__(self, f, b, l, r, dist, command_str=None):
@@ -43,7 +43,7 @@ class Command:
         self.r = r
         self.magnitude = self.parse_distance(
             dist) if dist is not None else None
-        self.raw = command_str
+        self.command_str = command_str
         """
         Note: translation/rotational_multiplier are Cam's interpretation, not required/expected
         """
@@ -116,35 +116,35 @@ class CommandParser:
         f, b, l, r, dist = (False, False, False, False, None)
         # 1. Separate into words
         words = command_str.split(" ")
-        # 2. Check if stop, do nothing
-        if words[0] == "stop":
-            return Command(f, b, l, r, dist)  # use default values set above
+        # 2. Check if stop or begin phrase
+        if 'stop' in words or 'begin' in words:
+            pass  # use default values set above
+        else:
+            # check & set directions independently
+            # Also record index of rightmost direction
+            end_dir_index = 0
+            if 'forward' in words:
+                f = True
+                end_dir_index = max(end_dir_index, words.index('forward'))
+            elif 'backward' in words:
+                b = True
+                end_dir_index = max(end_dir_index, words.index('backward'))
+            if 'left' in words:
+                l = True
+                end_dir_index = max(end_dir_index, words.index('left'))
+            elif 'right' in words:
+                r = True
+                end_dir_index = max(end_dir_index, words.index('right'))
 
-        # check & set directions independently
-        # Also record index of rightmost direction
-        end_dir_index = 0
-        if 'forward' in words:
-            f = True
-            end_dir_index = max(end_dir_index, words.index('forward'))
-        elif 'backward' in words:
-            b = True
-            end_dir_index = max(end_dir_index, words.index('backward'))
-        if 'left' in words:
-            l = True
-            end_dir_index = max(end_dir_index, words.index('left'))
-        elif 'right' in words:
-            r = True
-            end_dir_index = max(end_dir_index, words.index('right'))
-
-        # Check if index is end of array; if it is then we have (turn | go) <direction> and no distance
-        if end_dir_index + 1 == len(words):
-            return Command(f, b, l, r, dist)
-
-        # Combine strings from end_dir_index + 1 until the end of array - 1 to get magnitude of direction
-        # ex : turn right | one hundred and eighty | degrees
-        magnitude_str = ' '.join(words[end_dir_index+1:-1])
-        # create distance object
-        dist = Distance(self.__word_to_num(magnitude_str), words[-1])
+            # Check if index is end of array; if it is then we have (turn | go) <direction> and no distance
+            if end_dir_index + 1 == len(words):
+                pass # Skip magnitude calculation
+            else:
+                # Combine strings from end_dir_index + 1 until the end of array - 1 to get magnitude of direction
+                # ex : turn right | one hundred and eighty | degrees
+                magnitude_str = ' '.join(words[end_dir_index+1:-1])
+                # create distance object
+                dist = Distance(self.__word_to_num(magnitude_str), words[-1])
 
         return Command(f, b, l, r, dist, command_str)
 
@@ -158,7 +158,8 @@ class CommandParser:
             # Construct command object
             cmd = self.make_command(command_str)
         # Call client's callback with it.
-        return self.command_callback(cmd)
+        continue_cmds = False if self.command_callback(cmd) is None else True
+        return continue_cmds
 
     def __keyword_callback_st(self, keyword_str):
         # Call client's keyword callback
@@ -179,19 +180,18 @@ class CommandParser:
                     # listen for command phrase using grammar, then pass it to the callback
                     command = self.st.listen(
                         grammar=self.grammar, phrase_time_limit=5.0)
-                    continue_cmd_chain = False
-                    if callable(self.__command_callback_st):
-                        continue_cmd_chain = self.__command_callback_st(command)
+                    continue_cmd_chain = self.__command_callback_st(command)
                     if not self.run_thread or not continue_cmd_chain:
                         # Stop looping if:
                         # We receive signal to stop the thread
-                        # Client callback signals us to continue
+                        # Client callback signals us not to continue the command chain
                         break
 
     def start(self):
         # Start the listener thread to receive commands from the speech recog model
-        self.run_thread = True
-        self.sr_thread.start()
+        if not self.run_thread:
+            self.run_thread = True
+            self.sr_thread.start()
 
     def stop(self):
         # Stop SR listener thread
@@ -296,16 +296,20 @@ if __name__ == "__main__":
 
         def command_cb(command_obj):
             global last_cmd  # Required to share data between main thread and parse thread
+            loop = test == "speech-loop"
             out = ''
             last_cmd = command_obj
             if command_obj:
                 out = "Command detected: {}".format(command_obj)
+                loop = False
             else:
                 out = "No command detected!"
-            print("Parse Thread - " + out)
 
-        loop = test == "speech-loop"
-        parser = CommandParser(command_callback=command_cb, keyword_callback=keyword_cb, loop_until_command=loop)
+            print("Parse Thread - " + out)
+            # Return value indicates if we want to loop the grammar section
+            return loop
+
+        parser = CommandParser(command_callback=command_cb, keyword_callback=keyword_cb)
         parser.start()
         try:
             while True:
