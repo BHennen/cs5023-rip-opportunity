@@ -25,9 +25,10 @@ class Command:
         l: bool - indicates if left rotation is enabled
         r: bool - indicates if right rotation is enabled
         magnitude: float - indicates amount of units to move (meters/radians); None if not specified
+        raw: string - raw spoken string that generated the command
     """
 
-    def __init__(self, f, b, l, r, dist):
+    def __init__(self, f, b, l, r, dist, command_str=None):
         """ Command constructor
         Args:
             f: bool - indicates if forward movement is enabled
@@ -42,6 +43,7 @@ class Command:
         self.r = r
         self.magnitude = self.parse_distance(
             dist) if dist is not None else None
+        self.raw = command_str
         """
         Note: translation/rotational_multiplier are Cam's interpretation, not required/expected
         """
@@ -77,17 +79,18 @@ class CommandParser:
 
     If a keyword is detected, the keyword callback is executed with the keyword string detected sent to the callback function.
     Then, if valid keyword detected, the command callback is executed with a new command object sent to the callback function.
-        If loop_until_command is True, then keeps checking for valid command until it gets one.
+        If callback returns True, then checks for another command.
     
     Both can call the callbacks with value of None if no keyword or command was detected in time.
     """
 
-    def __init__(self, command_callback, keyword_callback=None, grammar=None, keywords=None, loop_until_command=False):
+    def __init__(self, command_callback, keyword_callback=None, grammar=None, keywords=None):
         """ CommandParser constructor
         Args:
             grammar: string - path to grammar file
             keywords: string - path to keywords file
             command_callback: function - callback function, called when a command is received from the ST model
+                callback can optionally return true to indicate to parser to listen for more commands
             keyword_callback: function - callback function, called when a keyword is detected by the ST model
             loop_until_command: bool - If set to true, loops until valid grammar command is found after detecting a valid keyword.
         """
@@ -100,7 +103,6 @@ class CommandParser:
         grammar_path = os.path.join(data_path, "commands.gram")
         self.grammar = grammar if grammar is not None else grammar_path
         self.keywords = keywords if keywords is not None else keywords_path
-        self.loop_until_command = loop_until_command
         """
         Fields:
             sr_thread: Thread - asynchronous, calls ST.start_listening
@@ -108,10 +110,6 @@ class CommandParser:
         """
         self.sr_thread = threading.Thread(target=self.__start_listen, args=())
         self.run_thread = True
-
-    def __del__(self):
-        # Stop listener thread
-        self.stop()
 
     def make_command(self, command_str):
         """Returns command object given a command string"""
@@ -148,7 +146,11 @@ class CommandParser:
         # create distance object
         dist = Distance(self.__word_to_num(magnitude_str), words[-1])
 
-        return Command(f, b, l, r, dist)
+        return Command(f, b, l, r, dist, command_str)
+
+    def __del__(self):
+        # Stop listener thread
+        self.stop()
 
     def __command_callback_st(self, command_str):
         cmd = None
@@ -156,7 +158,7 @@ class CommandParser:
             # Construct command object
             cmd = self.make_command(command_str)
         # Call client's callback with it.
-        self.command_callback(cmd)
+        return self.command_callback(cmd)
 
     def __keyword_callback_st(self, keyword_str):
         # Call client's keyword callback
@@ -177,13 +179,13 @@ class CommandParser:
                     # listen for command phrase using grammar, then pass it to the callback
                     command = self.st.listen(
                         grammar=self.grammar, phrase_time_limit=5.0)
+                    continue_cmd_chain = False
                     if callable(self.__command_callback_st):
-                        self.__command_callback_st(command)
-                    if not self.run_thread or command or not self.loop_until_command:
+                        continue_cmd_chain = self.__command_callback_st(command)
+                    if not self.run_thread or not continue_cmd_chain:
                         # Stop looping if:
-                        # We dont want to loop until we receive a valid command
-                        # We received a valid command
                         # We receive signal to stop the thread
+                        # Client callback signals us to continue
                         break
 
     def start(self):
