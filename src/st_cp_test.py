@@ -2,7 +2,7 @@
 # User libs
 from keyboard import RoboKeyboardControl
 from speech_commands.command_parser import CommandParser
-from speech_commands.command_handler import CommandHandler
+from speech_commands.command_handler import CommandQueue
 
 # Python libs
 import random as rand
@@ -53,33 +53,32 @@ prev_pos = None
 # Parser
 parser = None
 
-# Command Handler
-commhandler = None
+# Command Queue
+commqueue = None
 
+def commands_ready_cb():
+    global command_inhibitor
+    command_inhibitor = True
 
-def handle_that_command(cmd):
-    global command_inhibitor, commhandler, keyword_inhibitor
+def update_velocity_cb(twist_obj):
+    global vel_msg
+    if debug:
+        print("Vel message received by command queue: {}".format(vel_msg))
+    vel_msg = twist_obj
 
-    if cmd is None:
-        if debug:
-            print("No command detected")
-    else:
-        if debug:
-            print("Command received: {}".format(cmd))
-            print("Doing command: "+str(cmd))
+def command_done_cb(has_more_cmds):
+    global command_inhibitor
+    if debug:
+        print("Command done!")
+    # Continue executing commands if we have more
+    command_inhibitor = has_more_cmds
 
-        def update_vel(twist_obj):
-            global vel_msg
-            vel_msg = twist_obj
+def command_received_cb(cmd_obj):
+    if debug:
+        print("New command received: {}".format(cmd_obj))
+    # Do nothing since the command is handled by command queue
 
-        # Unconditionally set inhibitor
-        keyword_inhibitor = False
-        commhandler.start_command(
-            cmd, default_forward_velocity, default_a_velocity, update_vel)
-        command_inhibitor = True
-
-
-def handle_that_keyword(kw):
+def keyword_received_cb(kw):
     global keyword_inhibitor
     if kw is None:
         if debug:
@@ -111,19 +110,19 @@ def handle_that_bump(bump):
 def handle_that_odom(odom):
     """ Async odometry handler
 
-        Handles odometry data by setting the pose for the command handler
+        Handles odometry data by setting the pose for the command queue
 
         Note:
             Is normally executed as a callback by the subscriber to the Odometry event.
 
     """
 
-    global prev_pos, command_inhibitor, commhandler
+    global prev_pos, command_inhibitor, commqueue
 
     if command_inhibitor:
         # update pose\ only if we are executing a command
         pose = odom.pose.pose
-        commhandler.update_pose(pose)
+        commqueue.update_pose(pose)
 
 
 def set_vel(x=0.0, y=0.0, z=0.0, ax=0.0, ay=0.0, az=0.0):
@@ -208,14 +207,9 @@ def do_idle():
 
 
 def do_command():
-    # Keep calling continue_command until done_cb is called
-    global commhandler
-
-    def done_cb():
-        global command_inhibitor
-        command_inhibitor = False
-
-    commhandler.continue_command(done_cb)
+    # Keep calling process_commands until the done callback is called with no more commands in queue
+    global commqueue
+    commqueue.process_commands()
 
 
 def do_keyword():
@@ -261,34 +255,34 @@ def start_bot():
 
     """
 
-    global kill, keys, commhandler, parser
-    # Init subscribers
-    rospy.Subscriber('mobile_base/events/bumper',
-                     BumperEvent,
-                     handle_that_bump)
-    rospy.Subscriber('/odom', Odometry, handle_that_odom)
-    # Init node
-    rospy.init_node('cs5023_rip_opportunity', anonymous=True)
+    global kill, keys, commqueue, parser
+
     # Init keyboard
     keys = RoboKeyboardControl()
-    # Init command handler
-    commhandler = CommandHandler()
-    # Start async command parser
-    parser.start()
+    # Init command queue
+    commqueue = CommandQueue(default_forward_velocity, default_a_velocity,
+                             commands_ready_cb, update_velocity_cb, command_done_cb, command_received_cb, keyword_received_cb)
+    commqueue.start_listening()
+    
+    try:
+        # Init subscribers
+        rospy.Subscriber('mobile_base/events/bumper',
+                        BumperEvent,
+                        handle_that_bump)
+        rospy.Subscriber('/odom', Odometry, handle_that_odom)
+        # Init node
+        rospy.init_node('cs5023_rip_opportunity', anonymous=True)
 
-    # Keep program alive
-    while not rospy.is_shutdown() and not kill:
-        do_bot_logic()
-        rospy.loginfo("-"*50)
-        rospy.sleep(SLEEP_AMT)
+        # Keep program alive
+        while not rospy.is_shutdown() and not kill:
+            do_bot_logic()
+            rospy.loginfo("-"*50)
+            rospy.sleep(SLEEP_AMT)
+    except rospy.ROSInterruptException:
+        pass
+
+    commqueue.stop_listening()
 
 
 if __name__ == "__main__":
-    global parser
-    parser = CommandParser(command_callback=handle_that_command,
-                           keyword_callback=handle_that_keyword, loop_until_command=True)
-    try:
-        start_bot()
-    except rospy.ROSInterruptException:
-        pass
-    parser.stop()
+    start_bot()
