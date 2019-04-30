@@ -145,6 +145,8 @@ def set_vel(x=0.0, y=0.0, z=0.0, ax=0.0, ay=0.0, az=0.0):
         Sets the global vel_msg velocities.
 
     """
+    global vel_msg
+
     vel_msg.linear.x = x
     vel_msg.linear.y = y
     vel_msg.linear.z = z
