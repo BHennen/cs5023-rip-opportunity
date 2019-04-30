@@ -204,8 +204,7 @@ def do_keys():
 
 def do_idle():
     # Move in circle by default
-    set_vel(x=default_forward_velocity,
-            az=default_a_velocity)
+    set_vel()
 
 
 def do_command():
