@@ -251,7 +251,7 @@ class CommandHandler:
         # Set velocity message
         self.vel_msg.linear.x = trans_vel_mult * self.linear_velocity
         self.vel_msg.angular.z = ang_vel_mult * calc_ang_vel
-
+        
     def __get_a_vel(self, magnitude, linear_velocity, angular_velocity):
         """ Non-cardinal (arc) movement with desired endpoint
             Based on traveling left or right 45 degrees arc
@@ -268,6 +268,9 @@ class CommandHandler:
             dx = (self.current_pose.position.x - self.prev_pose.position.x)
             dy = (self.current_pose.position.y - self.prev_pose.position.y)
             self.current_magnitude += math.hypot(dx, dy)
+            if _debug:
+                print("__update_magnitude: Translational dist traveled: {}".format(
+                    self.current_magnitude))
         else:
             # calculate rotational distance
             self.prev_yaw = self.current_yaw
@@ -283,3 +286,6 @@ class CommandHandler:
             diff = abs(self.current_yaw - self.prev_yaw)
             angle = (2*math.pi)-diff if diff > math.pi else diff
             self.current_magnitude += angle
+            if _debug:
+                print("__update_magnitude: Rotational dist traveled: {}".format(
+                    self.current_magnitude))

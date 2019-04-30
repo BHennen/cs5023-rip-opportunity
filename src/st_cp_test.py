@@ -120,6 +120,8 @@ def handle_that_odom(odom):
     global prev_pos, command_inhibitor, commqueue
 
     if command_inhibitor:
+        if debug:
+            print(odom.pose.linear)
         # update pose\ only if we are executing a command
         pose = odom.pose.pose
         commqueue.update_pose(pose)
