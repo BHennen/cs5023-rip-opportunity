@@ -1,6 +1,5 @@
 from speech_transcriber import SpeechTranscriber
 import math
-import threading
 import os
 
 FEET_2_METERS = 0.3048
@@ -92,24 +91,10 @@ class CommandParser:
             command_callback: function - callback function, called when a command is received from the ST model
                 callback can optionally return true to indicate to parser to listen for more commands
             keyword_callback: function - callback function, called when a keyword is detected by the ST model
-            loop_until_command: bool - If set to true, loops until valid grammar command is found after detecting a valid keyword.
         """
-        self.st = SpeechTranscriber()
+        self.st = SpeechTranscriber(grammar=grammar, keywords=keywords)
         self.keyword_callback = keyword_callback
         self.command_callback = command_callback
-        data_path = os.path.join(os.path.dirname(
-            os.path.realpath(__file__)), "data")
-        keywords_path = os.path.join(data_path, "keywords.txt")
-        grammar_path = os.path.join(data_path, "commands.gram")
-        self.grammar = grammar if grammar is not None else grammar_path
-        self.keywords = keywords if keywords is not None else keywords_path
-        """
-        Fields:
-            sr_thread: Thread - asynchronous, calls ST.start_listening
-            run_thread: bool - flag indicating if sr_thread should still be alive
-        """
-        self.sr_thread = threading.Thread(target=self.__start_listen, args=())
-        self.run_thread = False
 
     def make_command(self, command_str):
         """Returns command object given a command string"""
@@ -148,6 +133,14 @@ class CommandParser:
 
         return Command(f, b, l, r, dist, command_str)
 
+    def start(self):
+        # Start the listener thread to receive commands from the speech recog model
+        self.st.start_listen_thread(self.__listen)
+
+    def stop(self):
+        # Stop st listener thread
+        self.st.stop_listen_thread()
+
     def __del__(self):
         # Stop listener thread
         self.stop()
@@ -169,37 +162,24 @@ class CommandParser:
         if callable(self.keyword_callback):
             self.keyword_callback(keyword_str)
 
-    def __start_listen(self):
-        # Thread definition: run SR listen method until parser object is destroyed
-        while self.run_thread:
+    def __listen(self, check_run_thread):
+        # Thread will continuously listen (until check_run_thread function returns false)
+        while check_run_thread():
             # Listen for keyword, then pass it to callback
-            keyword = self.st.listen(
-                keywords=self.keywords, phrase_time_limit=3.0)
+            keyword = self.st.listen(use_keywords=True, phrase_time_limit=3.0)
             self.__keyword_callback_st(keyword)
 
             if keyword is not None:
                 # Loop until grammar is heard (if desired)
                 while True:
                     # listen for command phrase using grammar, then pass it to the callback
-                    command = self.st.listen(
-                        grammar=self.grammar, phrase_time_limit=5.0)
+                    command = self.st.listen(use_grammar=True, phrase_time_limit=5.0)
                     continue_cmd_chain = self.__command_callback_st(command)
-                    if not self.run_thread or not continue_cmd_chain:
+                    if not check_run_thread() or not continue_cmd_chain:
                         # Stop looping if:
-                        # We receive signal to stop the thread
+                        # We receive signal from st to stop the thread
                         # Client callback signals us not to continue the command chain
-                        break
-
-    def start(self):
-        # Start the listener thread to receive commands from the speech recog model
-        if not self.run_thread:
-            self.run_thread = True
-            self.sr_thread.start()
-
-    def stop(self):
-        # Stop SR listener thread
-        self.run_thread = False
-        # self.sr_thread.join() #No need to wait until thread is done
+                        break   
 
     def __word_to_num(self, textnum, numwords={}):
         # Code borrowed from original at https://stackoverflow.com/a/493788 (@recursive)
