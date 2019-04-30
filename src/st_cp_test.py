@@ -63,30 +63,30 @@ def commands_ready_cb():
 def update_velocity_cb(twist_obj):
     global vel_msg
     if debug:
-        print("Vel message received by command queue: {}".format(vel_msg))
+        rospy.loginfo("Vel message received by command queue: {}".format(vel_msg))
     vel_msg = twist_obj
 
 def command_done_cb(has_more_cmds):
     global command_inhibitor
     if debug:
-        print("Command done!")
+        rospy.loginfo("Command done!")
     # Continue executing commands if we have more
     command_inhibitor = has_more_cmds
 
 def command_received_cb(cmd_obj):
     if debug:
-        print("New command received: {}".format(cmd_obj))
+        rospy.loginfo("New command received: {}".format(cmd_obj))
     # Do nothing since the command is handled by command queue
 
 def keyword_received_cb(kw):
     global keyword_inhibitor
     if kw is None:
         if debug:
-            print("No keyword detected")
+            rospy.loginfo("No keyword detected")
     else:
         if debug:
-            print("Keyword received: {}".format(kw))
-        print("YES MASTER?")
+            rospy.loginfo("Keyword received: {}".format(kw))
+        rospy.loginfo("YES MASTER?")
         keyword_inhibitor = True
 
 
@@ -121,7 +121,7 @@ def handle_that_odom(odom):
 
     if command_inhibitor:
         if debug:
-            print(odom.pose.linear)
+            rospy.loginfo(odom.pose)
         # update pose\ only if we are executing a command
         pose = odom.pose.pose
         commqueue.update_pose(pose)
@@ -203,7 +203,7 @@ def do_keys():
 
 
 def do_idle():
-    # Move in circle by default
+    # Do nothing
     set_vel()
 
 
