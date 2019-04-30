@@ -1,6 +1,5 @@
 from speech_transcriber import SpeechTranscriber
 import math
-import threading
 import os
 
 FEET_2_METERS = 0.3048
@@ -25,9 +24,10 @@ class Command:
         l: bool - indicates if left rotation is enabled
         r: bool - indicates if right rotation is enabled
         magnitude: float - indicates amount of units to move (meters/radians); None if not specified
+        command_str: string - spoken string that generated the command
     """
 
-    def __init__(self, f, b, l, r, dist):
+    def __init__(self, f, b, l, r, dist, command_str=None):
         """ Command constructor
         Args:
             f: bool - indicates if forward movement is enabled
@@ -42,6 +42,7 @@ class Command:
         self.r = r
         self.magnitude = self.parse_distance(
             dist) if dist is not None else None
+        self.command_str = command_str
         """
         Note: translation/rotational_multiplier are Cam's interpretation, not required/expected
         """
@@ -77,78 +78,72 @@ class CommandParser:
 
     If a keyword is detected, the keyword callback is executed with the keyword string detected sent to the callback function.
     Then, if valid keyword detected, the command callback is executed with a new command object sent to the callback function.
-        If loop_until_command is True, then keeps checking for valid command until it gets one.
+        If callback returns True, then checks for another command.
     
     Both can call the callbacks with value of None if no keyword or command was detected in time.
     """
 
-    def __init__(self, command_callback, keyword_callback=None, grammar=None, keywords=None, loop_until_command=False):
+    def __init__(self, command_callback, keyword_callback=None, grammar=None, keywords=None):
         """ CommandParser constructor
         Args:
             grammar: string - path to grammar file
             keywords: string - path to keywords file
             command_callback: function - callback function, called when a command is received from the ST model
+                callback can optionally return true to indicate to parser to listen for more commands
             keyword_callback: function - callback function, called when a keyword is detected by the ST model
-            loop_until_command: bool - If set to true, loops until valid grammar command is found after detecting a valid keyword.
         """
-        self.st = SpeechTranscriber()
+        self.st = SpeechTranscriber(grammar=grammar, keywords=keywords)
         self.keyword_callback = keyword_callback
         self.command_callback = command_callback
-        data_path = os.path.join(os.path.dirname(
-            os.path.realpath(__file__)), "data")
-        keywords_path = os.path.join(data_path, "keywords.txt")
-        grammar_path = os.path.join(data_path, "commands.gram")
-        self.grammar = grammar if grammar is not None else grammar_path
-        self.keywords = keywords if keywords is not None else keywords_path
-        self.loop_until_command = loop_until_command
-        """
-        Fields:
-            sr_thread: Thread - asynchronous, calls ST.start_listening
-            run_thread: bool - flag indicating if sr_thread should still be alive
-        """
-        self.sr_thread = threading.Thread(target=self.__start_listen, args=())
-        self.run_thread = True
-
-    def __del__(self):
-        # Stop listener thread
-        self.stop()
 
     def make_command(self, command_str):
         """Returns command object given a command string"""
         f, b, l, r, dist = (False, False, False, False, None)
         # 1. Separate into words
         words = command_str.split(" ")
-        # 2. Check if stop, do nothing
-        if words[0] == "stop":
-            return Command(f, b, l, r, dist)  # use default values set above
+        # 2. Check if stop or begin phrase
+        if 'stop' in words or 'begin' in words:
+            pass  # use default values set above
+        else:
+            # check & set directions independently
+            # Also record index of rightmost direction
+            end_dir_index = 0
+            if 'forward' in words:
+                f = True
+                end_dir_index = max(end_dir_index, words.index('forward'))
+            elif 'backward' in words:
+                b = True
+                end_dir_index = max(end_dir_index, words.index('backward'))
+            if 'left' in words:
+                l = True
+                end_dir_index = max(end_dir_index, words.index('left'))
+            elif 'right' in words:
+                r = True
+                end_dir_index = max(end_dir_index, words.index('right'))
 
-        # check & set directions independently
-        # Also record index of rightmost direction
-        end_dir_index = 0
-        if 'forward' in words:
-            f = True
-            end_dir_index = max(end_dir_index, words.index('forward'))
-        elif 'backward' in words:
-            b = True
-            end_dir_index = max(end_dir_index, words.index('backward'))
-        if 'left' in words:
-            l = True
-            end_dir_index = max(end_dir_index, words.index('left'))
-        elif 'right' in words:
-            r = True
-            end_dir_index = max(end_dir_index, words.index('right'))
+            # Check if index is end of array; if it is then we have (turn | go) <direction> and no distance
+            if end_dir_index + 1 == len(words):
+                pass # Skip magnitude calculation
+            else:
+                # Combine strings from end_dir_index + 1 until the end of array - 1 to get magnitude of direction
+                # ex : turn right | one hundred and eighty | degrees
+                magnitude_str = ' '.join(words[end_dir_index+1:-1])
+                # create distance object
+                dist = Distance(self.__word_to_num(magnitude_str), words[-1])
 
-        # Check if index is end of array; if it is then we have (turn | go) <direction> and no distance
-        if end_dir_index + 1 == len(words):
-            return Command(f, b, l, r, dist)
+        return Command(f, b, l, r, dist, command_str)
 
-        # Combine strings from end_dir_index + 1 until the end of array - 1 to get magnitude of direction
-        # ex : turn right | one hundred and eighty | degrees
-        magnitude_str = ' '.join(words[end_dir_index+1:-1])
-        # create distance object
-        dist = Distance(self.__word_to_num(magnitude_str), words[-1])
+    def start(self):
+        # Start the listener thread to receive commands from the speech recog model
+        self.st.start_listen_thread(self.__listen)
 
-        return Command(f, b, l, r, dist)
+    def stop(self):
+        # Stop st listener thread
+        self.st.stop_listen_thread()
+
+    def __del__(self):
+        # Stop listener thread
+        self.stop()
 
     def __command_callback_st(self, command_str):
         cmd = None
@@ -156,45 +151,35 @@ class CommandParser:
             # Construct command object
             cmd = self.make_command(command_str)
         # Call client's callback with it.
-        self.command_callback(cmd)
+        # Return value indicates if we want to loop until valid command found
+        if callable(self.command_callback):
+            return self.command_callback(cmd)
+        else:
+            return False
 
     def __keyword_callback_st(self, keyword_str):
         # Call client's keyword callback
-        self.keyword_callback(keyword_str)
+        if callable(self.keyword_callback):
+            self.keyword_callback(keyword_str)
 
-    def __start_listen(self):
-        # Thread definition: run SR listen method until parser object is destroyed
-        while self.run_thread:
+    def __listen(self, check_run_thread):
+        # Thread will continuously listen (until check_run_thread function returns false)
+        while check_run_thread():
             # Listen for keyword, then pass it to callback
-            keyword = self.st.listen(
-                keywords=self.keywords, phrase_time_limit=3.0)
-            if callable(self.__keyword_callback_st):
-                self.__keyword_callback_st(keyword)
+            keyword = self.st.listen(use_keywords=True, phrase_time_limit=3.0)
+            self.__keyword_callback_st(keyword)
 
             if keyword is not None:
                 # Loop until grammar is heard (if desired)
                 while True:
                     # listen for command phrase using grammar, then pass it to the callback
-                    command = self.st.listen(
-                        grammar=self.grammar, phrase_time_limit=5.0)
-                    if callable(self.__command_callback_st):
-                        self.__command_callback_st(command)
-                    if not self.run_thread or command or not self.loop_until_command:
+                    command = self.st.listen(use_grammar=True, phrase_time_limit=5.0)
+                    continue_cmd_chain = self.__command_callback_st(command)
+                    if not check_run_thread() or not continue_cmd_chain:
                         # Stop looping if:
-                        # We dont want to loop until we receive a valid command
-                        # We received a valid command
-                        # We receive signal to stop the thread
-                        break
-
-    def start(self):
-        # Start the listener thread to receive commands from the speech recog model
-        self.run_thread = True
-        self.sr_thread.start()
-
-    def stop(self):
-        # Stop SR listener thread
-        self.run_thread = False
-        # self.sr_thread.join() #No need to wait until thread is done
+                        # We receive signal from st to stop the thread
+                        # Client callback signals us not to continue the command chain
+                        break   
 
     def __word_to_num(self, textnum, numwords={}):
         # Code borrowed from original at https://stackoverflow.com/a/493788 (@recursive)
@@ -294,16 +279,20 @@ if __name__ == "__main__":
 
         def command_cb(command_obj):
             global last_cmd  # Required to share data between main thread and parse thread
+            loop = test == "speech-loop"
             out = ''
             last_cmd = command_obj
             if command_obj:
                 out = "Command detected: {}".format(command_obj)
+                loop = False
             else:
                 out = "No command detected!"
-            print("Parse Thread - " + out)
 
-        loop = test == "speech-loop"
-        parser = CommandParser(command_callback=command_cb, keyword_callback=keyword_cb, loop_until_command=loop)
+            print("Parse Thread - " + out)
+            # Return value indicates if we want to loop the grammar section
+            return loop
+
+        parser = CommandParser(command_callback=command_cb, keyword_callback=keyword_cb)
         parser.start()
         try:
             while True:

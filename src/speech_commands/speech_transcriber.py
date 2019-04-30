@@ -1,20 +1,44 @@
 import speech_recognition as sr
 import os
+import threading
 
 
 class SpeechTranscriber():
-    def __init__(self):
+    def __init__(self, grammar=None, keywords=None):
         self.r = sr.Recognizer()
         self.m = sr.Microphone()
+        self.st_thread = None
+        self.run_thread = False
+
+        # Get data path
+        data_directory = os.path.join(
+            os.path.dirname(os.path.realpath(__file__)), "data")
+        if not os.path.isdir(data_directory):
+            raise Exception(
+                "Data directory not found at: \"{}\"".format(data_directory))
+
+        # Get keywords and grammar
+        keywords_path = os.path.join(data_directory, "keywords.txt")
+        keywords_path = keywords if keywords is not None else keywords_path
+        self.update_keywords_path(keywords_path)
+
+        grammar_path = os.path.join(data_directory, "commands.gram")
+        grammar_path = grammar if grammar is not None else grammar_path
+        self.update_grammar_path(grammar_path)
 
         # Get language data
-        language_directory = os.path.join(os.path.dirname(os.path.realpath(__file__)), "data", "language")
+        language_directory = os.path.join(data_directory, "language")
         if not os.path.isdir(language_directory):
-            raise Exception("missing language data directory: \"{}\"".format(language_directory))
-        acoustic_parameters_directory = os.path.join(language_directory, "acoustic-model")
-        language_model_file = os.path.join(language_directory, "language-model.lm.bin")
-        phoneme_dictionary_file = os.path.join(language_directory, "pronounciation-dictionary.dict")
-        self.language = (acoustic_parameters_directory, language_model_file, phoneme_dictionary_file)
+            raise Exception(
+                "Language data directory not found at: \"{}\"".format(language_directory))
+        acoustic_parameters_directory = os.path.join(
+            language_directory, "acoustic-model")
+        language_model_file = os.path.join(
+            language_directory, "language-model.lm.bin")
+        phoneme_dictionary_file = os.path.join(
+            language_directory, "pronounciation-dictionary.dict")
+        self.language = (acoustic_parameters_directory,
+                         language_model_file, phoneme_dictionary_file)
 
         # Adjust for ambient noise
         print("A moment of silence, please...")
@@ -22,48 +46,46 @@ class SpeechTranscriber():
             self.r.adjust_for_ambient_noise(source)
         print("Set minimum energy threshold to {}".format(self.r.energy_threshold))
 
-    def start_listening(self, keyword_cb, command_cb, grammar, keywords):
-        ''' Listens for keyword, then listens for command in grammar.
-        If valid keyword was found, calls keyword_cb with keyword found, then listens for command.
-        If command was found, calls the command_cb with the command string that was said.
-        '''
-
-        if grammar is None or keywords is None:
+    def update_grammar_path(self, grammar_path):
+        """ Update the path used for grammar recognition """
+        if not os.path.isfile(grammar_path):
             raise Exception(
-                "Must specify grammar file path and keywords file.")
+                "Grammar file not found at: \"{}\"".format(grammar_path))
+        else:
+            self.grammar = grammar_path
 
-        # Listen for keyword
-        keyword = self.listen(keywords=keywords, phrase_time_limit=3.0)
-        if callable(keyword_cb):
-            keyword_cb(keyword)
-        if keyword is not None:            
-            # listen for command phrase using grammar, then pass it to the callback
-            command = self.listen(grammar=grammar, phrase_time_limit=5.0)
-            if callable(command_cb):
-                command_cb(command)
+    def update_keywords_path(self, keywords_path):
+        """ Update the path used for keyword recognition """
+        if not os.path.isfile(keywords_path):
+            raise Exception(
+                "Keywords file not found at: \"{}\"".format(keywords_path))
+        else:
+            self.keyword_entries = self.__generate_keywords(keywords_path)
 
-    def listen(self, grammar=None, keywords=None, timeout=None, phrase_time_limit=None):
+    def listen(self, use_grammar=False, use_keywords=False, timeout=None, phrase_time_limit=None):
         '''
         Listen to a user using either a grammar or keyword entries
         Returns the first keyword or command found as a string.
         Returns None if didn't understand.
         '''
-        if grammar is None and keywords is None:
+        if not use_grammar and not use_keywords:
             raise Exception(
                 "Must specify grammar file path or keywords file.")
 
-        print("Say something!")
+        speech_type = "a command" if use_grammar else "a keyword"
+        time_limit = " in {} seconds".format(phrase_time_limit) if phrase_time_limit else ''
+        print("SpeechTranscriber: Say {}{}!".format(speech_type, time_limit))
         with self.m as source:
             audio = self.r.listen(
                 source, timeout=timeout, phrase_time_limit=phrase_time_limit)
-            print("Got it! Now to recognize it...")
+            print("SpeechTranscriber: Got it! Now to recognize it...")
         try:
-            if grammar:
+            if use_grammar:
                 value = self.r.recognize_sphinx(
-                    audio_data=audio, grammar=grammar, language=self.language)
-            elif keywords:
+                    audio_data=audio, grammar=self.grammar, language=self.language)
+            elif use_keywords:
                 value = self.r.recognize_sphinx(
-                    audio_data=audio, keyword_entries=self.__generate_keywords(keywords), language=self.language)
+                    audio_data=audio, keyword_entries=self.keyword_entries, language=self.language)
 
             # we need some special handling here to correctly print unicode characters to standard output
             # this version of Python uses bytes for strings (Python 2)
@@ -73,13 +95,33 @@ class SpeechTranscriber():
             # this version of Python uses unicode for strings (Python 3+)
             else:
                 result = "{}".format(value)
-            
-            if grammar:
+
+            if use_grammar:
                 result = self.__remove_garbage(result)
 
             return result
         except sr.UnknownValueError:
             return None
+
+    def start_listen_thread(self, func):
+        """ Start a new thread that calls the given function.
+            Function passed as parameter which should be called by function to determine
+            if thread should continue to be run
+         """
+        if not self.st_thread or not self.st_thread.is_alive():
+            self.st_thread = threading.Thread(
+                target=self._start_listen, args=(func,))
+            self.run_thread = True
+            self.st_thread.start()
+
+    def stop_listen_thread(self):
+        self.run_thread = False
+
+    def _start_listen(self, func):
+        func(self._check_run_thread)
+
+    def _check_run_thread(self):
+        return self.run_thread
 
     def __generate_keywords(self, path):
         class Hack:
@@ -105,68 +147,131 @@ class SpeechTranscriber():
             def __le__(self, o):
                 return True
 
-        sensitivity = Hack(-3) #TODO: make keywords have individual sensitivities (if desired)
+            __lt__ = __le__
+            __eq__ = __le__
+            __ne__ = __le__
+            __ge__ = __le__
+            __gt__ = __le__
+
+        # TODO: make keywords have individual sensitivities (if desired)
+        sensitivity = Hack(-3)
         keywords = []
         with open(path, 'r') as f:
             keywords = [(keyword.strip(), sensitivity)
                         for keyword in f.readlines()]
             return keywords
-    
+
     def __remove_garbage(self, command_str):
         import re
         """ Removes all garbage phonemes from a grammar search.
         
         Returns the string command or None is no command recognized
         """
-        regex = r'\s*?zz\d{1,2}\s*'
+        regex = r'zz\d{1,2}\s*'
         result = re.sub(regex, '', command_str)
-        if not result: result = None
+        result = result.strip()
+        if not result:
+            result = None
         return result
 
 
 if __name__ == "__main__":
-    # Use by calling: python speech_transcriber.py [keywords|grammar|both]
+    # Use by calling: python speech_transcriber.py [keywords|grammar|both|both-async]
     import sys
+    import time
 
     if len(sys.argv) > 1:
         test = sys.argv[1]
     else:
         test = 'keywords'
 
-    data_path = os.path.join(os.path.dirname(
-        os.path.realpath(__file__)), "data")
+    last_kwd = None
+    last_cmd = None
+
+    def print_with_thread(output):
+        print("{} - {}".format(threading.current_thread().name, output))
+
+    def keyword_cb(speech):
+        global last_kwd
+        last_kwd = speech
+        print_with_thread("Received keyword: {}".format(speech))
+
+    def command_cb(speech):
+        global last_cmd
+        last_cmd = speech
+        print_with_thread("Received command: {}".format(speech))
+        # Loop until we receive valid command
+        if speech is None:
+            return True
+        else:
+            return False
+
     st = SpeechTranscriber()
 
     if test == 'keywords':
         # run keywords/hotwords test
         try:
             while True:
-                print(st.listen(
-                    keywords=os.path.join(data_path, "keywords.txt"), 
-                    phrase_time_limit=3.0))
+                print(st.listen(use_keywords=True, phrase_time_limit=3.0))
         except KeyboardInterrupt:
             pass
 
     elif test == 'grammar':
         try:
             while True:
-                print(st.listen(
-                    grammar=os.path.join(data_path, "commands.gram"),
-                    phrase_time_limit=5.0))
+                print(st.listen(use_grammar=True, phrase_time_limit=5.0))
         except KeyboardInterrupt:
             pass
 
     elif test == 'both':
-        def test1(speech):
-            print("keyword is: {}".format(speech))
-        def test2(speech):
-            print("command is: {}".format(speech))
-
         try:
             while True:
-                st.start_listening(grammar=os.path.join(data_path, "commands.gram"),
-                                keywords=os.path.join(data_path, "keywords.txt"),
-                                   keyword_cb=test1, command_cb=test2)
+                # Listen for keyword, then pass it to callback
+                keyword = st.listen(use_keywords=True, phrase_time_limit=3.0)
+                keyword_cb(keyword)
+
+                if keyword is not None:
+                    # Loop until grammar is heard (if desired)
+                    while True:
+                        # listen for command phrase using grammar, then pass it to the callback
+                        command = st.listen(
+                            use_grammar=True, phrase_time_limit=5.0)
+                        continue_cmd_chain = command_cb(command)
+                        if not continue_cmd_chain:
+                            # Stop looping if:
+                            # Client callback signals us not to continue the command chain
+                            break
 
         except KeyboardInterrupt:
             pass
+
+    elif test == 'both-async':
+        def async_func(continue_thread):
+            # Thread will continuously listen (until continue_thread function returns false)
+            while continue_thread():
+                # Listen for keyword, then pass it to callback
+                keyword = st.listen(use_keywords=True, phrase_time_limit=3.0)
+                keyword_cb(keyword)
+
+                if keyword is not None:
+                    # Loop until grammar is heard (if desired)
+                    while True:
+                        # listen for command phrase using grammar, then pass it to the callback
+                        command = st.listen(
+                            use_grammar=True, phrase_time_limit=5.0)
+                        continue_cmd_chain = command_cb(command)
+                        if not continue_thread() or not continue_cmd_chain:
+                            # Stop looping if:
+                            # We receive signal to stop the thread
+                            # Client callback signals us not to continue the command chain
+                            break
+
+        st.start_listen_thread(async_func)
+        try:
+            while True:
+                print_with_thread("last kwd: '{}'\t last cmd: '{}'".format(last_kwd, last_cmd))
+                time.sleep(0.5)
+        except KeyboardInterrupt:
+            pass
+        finally:
+            st.stop_listen_thread()

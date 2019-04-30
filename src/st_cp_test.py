@@ -1,8 +1,14 @@
 #!/usr/bin/env python
-import rospy
+# User libs
+from keyboard import RoboKeyboardControl
+from speech_commands.command_handler import CommandQueue
+
+# Python libs
 import random as rand
 import math
-from keyboard import RoboKeyboardControl
+
+# Ros libs
+import rospy
 
 # Twist object used for pushing to nav node
 from geometry_msgs.msg import Twist
@@ -15,15 +21,6 @@ from sensor_msgs.msg import LaserScan
 
 # Detect odometry events
 from nav_msgs.msg import Odometry
-
-from speech_commands.command_parser import CommandParser
-import math
-import rospy
-from keyboard import RoboKeyboardControl
-from tf.transformations import euler_from_quaternion
-
-# Twist object used for pushing to nav node
-from geometry_msgs.msg import Twist
 
 SLEEP_AMT = 0.1
 
@@ -52,131 +49,44 @@ keys = None
 # Odom variables
 prev_pos = None
 
-# Turn variables
-turn_handler = None
-commhandler = None
+# Parser
+parser = None
 
+# Command Queue
+commqueue = None
 
-class CommandHandler:
-    def __init__(self):
-        self.command = None
-        self.vel_msg = None
-        self.current_distance = 0
-        self.current_pose = None
-        self.prev_pose = None
-        self.goal_distance = None
-        self.prev_yaw = None
-        self.current_yaw = None
-        self.total_angle = 0
+def commands_ready_cb():
+    global command_inhibitor, keyword_inhibitor
+    command_inhibitor = True
+    keyword_inhibitor = False
 
-    def start_command(self, command, linear_velocity=default_forward_velocity):
-        self.command = command
-        print("Starting execution of command "+str(command))
+def update_velocity_cb(twist_obj):
+    global vel_msg
+    if debug:
+        rospy.loginfo("Vel message received by command queue: {}".format(vel_msg))
+    vel_msg = twist_obj
 
-        # Set translational
-        trans_vel = 1 if command.f else -1 if command.b else 0
-        # Set rotational
-        ang_vel_mult = 1 if command.r else -1 if command.l else 0
-        ang_vel = self.__get_a_vel(command, linear_velocity)
+def command_done_cb(has_more_cmds):
+    global command_inhibitor
+    if debug:
+        rospy.loginfo("Command done!")
+    # Continue executing commands if we have more
+    command_inhibitor = has_more_cmds
 
-        self.vel_msg = Twist(x=trans_vel * linear_velocity,
-                             az=ang_vel_mult * ang_vel)
-        self.goal_distance = command.magnitude
+def command_received_cb(cmd_obj):
+    if debug:
+        rospy.loginfo("New command received: {}".format(cmd_obj))
+    # Do nothing since the command is handled by command queue
 
-        # Reset pose and accumulators
-        self.current_distance = 0
-        self.current_pose = None
-        self.prev_pose = None
-        self.total_angle = 0
-        self.prev_yaw = None
-        self.current_yaw = None
-
-    def continue_command(self):
-        """ Checks distance from origin position
-
-        """
-        global command_inhibitor
-        if command_inhibitor:
-            # Update velocity
-            set_vel(self.vel_msg)
-            # Check if goal reached
-            if self.goal_distance:
-                self.__update_distance()
-                if self.current_distance >= self.goal_distance:
-                    command_inhibitor = False
-
-    def update_pose(self, pose):
-        """
-        Called by async odom handler
-        """
-        if self.prev_pose is None:
-            self.prev_pose = pose
-        else:
-            self.prev_pose = self.current_pose
-        self.current_pose = pose
-
-    def __get_a_vel(self, command, linear_velocity):
-        """ Math
-
-        """
-        if command.magnitude != 0:
-            # Non-cardinal (arc) movement
-            return math.sqrt(2) * linear_velocity / command.magnitude
-        else:
-            # Stationary rotation
-            return default_a_velocity
-
-    def __update_distance(self):
-        if self.current_pose is None or self.prev_pose is None:
-            # Return if odom hasn't updated our pose yet
-            return
-        if self.command.f or self.command.b:
-            # calculate translational distance
-            dx = (self.current_pose.position.x - self.prev_pose.position.x)
-            dy = (self.current_pose.position.y - self.prev_pose.position.y)
-            self.current_distance += math.hypot(dx, dy)
-        else:
-            # calculate rotational distance
-            self.prev_yaw = self.current_yaw
-            quat = self.current_pose.orientation
-            (roll, pitch, yaw) = euler_from_quaternion(
-                [quat.x, quat.y, quat.z, quat.w])
-            self.current_yaw = yaw
-            if self.prev_yaw is None:
-                return
-
-            # Accumulate angle travelled
-            diff = abs(self.current_yaw - self.prev_yaw)
-            angle = 360-diff if diff > 180 else diff
-            self.total_angle += angle
-
-
-def handle_that_command(cmd):
-    global command_inhibitor, commhandler, keyword_inhibitor
-
-    if cmd is None:
-        if debug:
-            print("No command detected")
-    else:
-        if debug:
-            print("Command received: {}".format(cmd))
-
-        print("Doing command: "+str(cmd))
-        # Unconditionally set inhibitor
-        keyword_inhibitor = False
-        commhandler.start_command(cmd)
-        command_inhibitor = True
-
-
-def handle_that_keyword(kw):
+def keyword_received_cb(kw):
     global keyword_inhibitor
     if kw is None:
         if debug:
-            print("No keyword detected")
+            rospy.loginfo("No keyword detected")
     else:
         if debug:
-            print("Keyword received: {}".format(kw))
-        print("YES MASTER?")
+            rospy.loginfo("Keyword received: {}".format(kw))
+        rospy.loginfo("YES MASTER?")
         keyword_inhibitor = True
 
 
@@ -200,19 +110,21 @@ def handle_that_bump(bump):
 def handle_that_odom(odom):
     """ Async odometry handler
 
-        Handles odometry data by setting the pose for the command handler
+        Handles odometry data by setting the pose for the command queue
 
         Note:
             Is normally executed as a callback by the subscriber to the Odometry event.
 
     """
 
-    global prev_pos, command_inhibitor, commhandler
+    global prev_pos, command_inhibitor, commqueue
 
     if command_inhibitor:
+        if debug:
+            rospy.loginfo(odom.pose)
         # update pose\ only if we are executing a command
         pose = odom.pose.pose
-        commhandler.update_pose(pose)
+        commqueue.update_pose(pose)
 
 
 def set_vel(x=0.0, y=0.0, z=0.0, ax=0.0, ay=0.0, az=0.0):
@@ -233,6 +145,8 @@ def set_vel(x=0.0, y=0.0, z=0.0, ax=0.0, ay=0.0, az=0.0):
         Sets the global vel_msg velocities.
 
     """
+    global vel_msg
+
     vel_msg.linear.x = x
     vel_msg.linear.y = y
     vel_msg.linear.z = z
@@ -291,13 +205,14 @@ def do_keys():
 
 
 def do_idle():
-    # Move in circle by default
-    set_vel(x=default_forward_velocity,
-            az=default_a_velocity)
+    # Do nothing
+    set_vel()
 
 
 def do_command():
-    commhandler.continue_command()
+    # Keep calling process_commands until the done callback is called with no more commands in queue
+    global commqueue
+    commqueue.process_commands()
 
 
 def do_keyword():
@@ -316,7 +231,7 @@ def do_bot_logic():
     """
 
     # Check for inhibition signals
-    # global bump_inhibitor, keyboard_inhibitor, escape_inhibitor, random_turn_inhibitor
+    global bump_inhibitor, keyword_inhibitor, command_inhibitor
     if bump_inhibitor:
         # Do bumped logic
         do_bump()
@@ -343,31 +258,34 @@ def start_bot():
 
     """
 
-    global kill, keys, turn_handler, commhandler
-    # Init subscribers
-    rospy.Subscriber('mobile_base/events/bumper',
-                     BumperEvent,
-                     handle_that_bump)
-    rospy.Subscriber('/odom', Odometry, handle_that_odom)
-    # Init node
-    rospy.init_node('cs5023_rip_opportunity', anonymous=True)
+    global kill, keys, commqueue, parser
+
     # Init keyboard
     keys = RoboKeyboardControl()
-    commhandler = CommandHandler()
+    # Init command queue
+    commqueue = CommandQueue(default_forward_velocity, default_a_velocity,
+                             commands_ready_cb, update_velocity_cb, command_done_cb, command_received_cb, keyword_received_cb)
+    commqueue.start_listening()
 
-    # Keep program alive
-    while not rospy.is_shutdown() and not kill:
-        do_bot_logic()
-        rospy.loginfo("-"*50)
-        rospy.sleep(SLEEP_AMT)
+    try:
+        # Init subscribers
+        rospy.Subscriber('mobile_base/events/bumper',
+                        BumperEvent,
+                        handle_that_bump)
+        rospy.Subscriber('/odom', Odometry, handle_that_odom)
+        # Init node
+        rospy.init_node('cs5023_rip_opportunity', anonymous=True)
+
+        # Keep program alive
+        while not rospy.is_shutdown() and not kill:
+            do_bot_logic()
+            rospy.loginfo("-"*50)
+            rospy.sleep(SLEEP_AMT)
+    except rospy.ROSInterruptException:
+        pass
+    finally:
+        commqueue.stop_listening()
 
 
 if __name__ == "__main__":
-    parser = CommandParser(command_callback=handle_that_command,
-                           keyword_callback=handle_that_keyword, loop_until_command=True)
-    parser.start()
-    try:
-        start_bot()
-    except rospy.ROSInterruptException:
-        pass
-    parser.stop()
+    start_bot()
