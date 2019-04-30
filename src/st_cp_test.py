@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 # User libs
 from keyboard import RoboKeyboardControl
-from speech_commands.command_parser import CommandParser
 from speech_commands.command_handler import CommandQueue
 
 # Python libs

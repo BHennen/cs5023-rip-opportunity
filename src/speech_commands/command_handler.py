@@ -239,7 +239,7 @@ class CommandHandler:
         # Set translational
         trans_vel_mult = 1 if self.command.f else -1 if self.command.b else 0
         # Set rotational
-        ang_vel_mult = 1 if self.command.r else -1 if self.command.l else 0
+        ang_vel_mult = -1 if self.command.r else 1 if self.command.l else 0
 
         # If we want to go at an angle (using both translational and angular velocity)
         # and the goalpoint is set, calculate angular velocity to reach the goalpoint
