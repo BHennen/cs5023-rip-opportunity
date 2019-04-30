@@ -201,6 +201,7 @@ class CommandHandler:
         self.goal_magnitude = command.magnitude
         self.prev_yaw = None
         self.current_yaw = None
+        self.has_odom_data = False
         self.__update_vel_msg()
 
     def continue_command(self, done_cb, set_velocity_cb):
@@ -229,11 +230,8 @@ class CommandHandler:
         """
         Called by async odom handler
         """
-        if self.prev_pose is None:
-            self.prev_pose = pose
-        else:
-            self.prev_pose = self.current_pose
         self.current_pose = pose
+        self.has_odom_data = True
 
     def __update_vel_msg(self):
         # Set translational
@@ -260,21 +258,38 @@ class CommandHandler:
         return math.sqrt(2) * linear_velocity / magnitude
 
     def __update_magnitude(self):
-        if self.current_pose is None or self.prev_pose is None:
-            # Return if odom hasn't updated our pose yet
+        # Handle pose update
+        if self.prev_pose is None:
+            # Just started command and don't have previous pose
+            self.prev_pose = self.current_pose
             return
+        else:
+            # Have previous pose
+            if not self.has_odom_data:
+                # We dont have new odom data, don't do update
+                return
+            else:
+                # We are ready to process new data
+                pass
+
+        # Set local variable for pose (in case self.current_pose gets updated during calculation)
+        cur_pose = self.current_pose
+        self.has_odom_data = False
+
+        # Calculate the distance travelled
         if self.command.f or self.command.b:
             # calculate translational distance
-            dx = (self.current_pose.position.x - self.prev_pose.position.x)
-            dy = (self.current_pose.position.y - self.prev_pose.position.y)
-            self.current_magnitude += math.hypot(dx, dy)
+            dx = cur_pose.position.x - self.prev_pose.position.x
+            dy = cur_pose.position.y - self.prev_pose.position.y
+            dist = math.hypot(dx, dy)
+            self.current_magnitude += dist
             if _debug:
-                print("__update_magnitude: Translational dist traveled: {}".format(
-                    self.current_magnitude))
+                print("__update_magnitude - translational: dx:{}, dy:{}, dist: {}, self.current_magnitude: {}".format(
+                    dx, dy, dist, self.current_magnitude))
         else:
             # calculate rotational distance
             self.prev_yaw = self.current_yaw
-            quat = self.current_pose.orientation
+            quat = cur_pose.orientation
             (roll, pitch, yaw) = euler_from_quaternion(
                 [quat.x, quat.y, quat.z, quat.w])
             self.current_yaw = yaw
@@ -287,5 +302,8 @@ class CommandHandler:
             angle = (2*math.pi)-diff if diff > math.pi else diff
             self.current_magnitude += angle
             if _debug:
-                print("__update_magnitude: Rotational dist traveled: {}".format(
-                    self.current_magnitude))
+                print("__update_magnitude - rotational: angle:{}, self.current_magnitude:{}".format(
+                    angle, self.current_magnitude))
+
+        # Set previous pose
+        self.prev_pose = cur_pose
