@@ -57,8 +57,9 @@ parser = None
 commqueue = None
 
 def commands_ready_cb():
-    global command_inhibitor
+    global command_inhibitor, keyword_inhibitor
     command_inhibitor = True
+    keyword_inhibitor = False
 
 def update_velocity_cb(twist_obj):
     global vel_msg
@@ -228,7 +229,7 @@ def do_bot_logic():
     """
 
     # Check for inhibition signals
-    # global bump_inhibitor, keyboard_inhibitor, escape_inhibitor, random_turn_inhibitor
+    global bump_inhibitor, keyword_inhibitor, command_inhibitor
     if bump_inhibitor:
         # Do bumped logic
         do_bump()
@@ -263,7 +264,7 @@ def start_bot():
     commqueue = CommandQueue(default_forward_velocity, default_a_velocity,
                              commands_ready_cb, update_velocity_cb, command_done_cb, command_received_cb, keyword_received_cb)
     commqueue.start_listening()
-    
+
     try:
         # Init subscribers
         rospy.Subscriber('mobile_base/events/bumper',
@@ -280,8 +281,8 @@ def start_bot():
             rospy.sleep(SLEEP_AMT)
     except rospy.ROSInterruptException:
         pass
-
-    commqueue.stop_listening()
+    finally:
+        commqueue.stop_listening()
 
 
 if __name__ == "__main__":

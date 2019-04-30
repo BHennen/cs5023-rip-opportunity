@@ -183,6 +183,7 @@ class CommandHandler:
         self.current_yaw = None
         self.linear_velocity = linear_velocity
         self.angular_velocity = angular_velocity
+        self.vel_msg = Twist()
 
     def start_command(self, command):
         """ Parses a given command and then calls the set_velocity_cb with a Twist object.
@@ -248,8 +249,8 @@ class CommandHandler:
                 self.command.magnitude, self.linear_velocity, self.angular_velocity)
 
         # Set velocity message
-        self.vel_msg = Twist(x=trans_vel_mult * self.linear_velocity,
-                             az=ang_vel_mult * calc_ang_vel)
+        self.vel_msg.linear.x = trans_vel_mult * self.linear_velocity
+        self.vel_msg.angular.z = ang_vel_mult * calc_ang_vel
 
     def __get_a_vel(self, magnitude, linear_velocity, angular_velocity):
         """ Non-cardinal (arc) movement with desired endpoint

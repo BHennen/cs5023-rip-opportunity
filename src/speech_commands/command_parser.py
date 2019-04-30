@@ -109,7 +109,7 @@ class CommandParser:
             run_thread: bool - flag indicating if sr_thread should still be alive
         """
         self.sr_thread = threading.Thread(target=self.__start_listen, args=())
-        self.run_thread = True
+        self.run_thread = False
 
     def make_command(self, command_str):
         """Returns command object given a command string"""
@@ -158,12 +158,16 @@ class CommandParser:
             # Construct command object
             cmd = self.make_command(command_str)
         # Call client's callback with it.
-        continue_cmds = False if self.command_callback(cmd) is None else True
-        return continue_cmds
+        # Return value indicates if we want to loop until valid command found
+        if callable(self.command_callback):
+            return self.command_callback(cmd)
+        else:
+            return False
 
     def __keyword_callback_st(self, keyword_str):
         # Call client's keyword callback
-        self.keyword_callback(keyword_str)
+        if callable(self.keyword_callback):
+            self.keyword_callback(keyword_str)
 
     def __start_listen(self):
         # Thread definition: run SR listen method until parser object is destroyed
@@ -171,8 +175,7 @@ class CommandParser:
             # Listen for keyword, then pass it to callback
             keyword = self.st.listen(
                 keywords=self.keywords, phrase_time_limit=3.0)
-            if callable(self.__keyword_callback_st):
-                self.__keyword_callback_st(keyword)
+            self.__keyword_callback_st(keyword)
 
             if keyword is not None:
                 # Loop until grammar is heard (if desired)
