@@ -2,7 +2,7 @@
 import math
 from collections import deque
 
-from command_parser import CommandParser
+from command_parser import CommandParser, Command
 
 # Ros packages
 # Twist object used for pushing to nav node
@@ -55,6 +55,79 @@ class CommandQueue:
     def change_velocities(self, linear_velocity, angular_velocity):
         self.commhandler.change_velocities(linear_velocity, angular_velocity)
 
+    def _condense_commands(self, command_iterable):
+        theta = 0
+        x = 0
+        y = 0
+
+        def calc_angle(theta, angle_mod, magnitude):
+            theta = theta + (angle_mod * magnitude)
+            theta = (theta % (2*math.pi)) * angle_mod
+            if theta < 0:
+                    theta = theta + 2*math.pi
+            return theta
+        
+        def calc_distance(theta, magnitude, distance_mod=1):
+            dx = math.cos(theta) * magnitude * distance_mod
+            dy = math.sin(theta) * magnitude * distance_mod
+            return (dx, dy)
+            
+        for command in command_iterable:
+            translational = command.f or command.b
+            rotational = command.r or command.l
+            if translational and rotational:
+                # ex: go forward and right 1 foot
+                distance_mod = -1 if command.b else 1
+                angle_mod = distance_mod * -1 if command.r else distance_mod * 1
+                # simulate rotating at a 45 degree angle
+                theta = calc_angle(theta, angle_mod, math.pi/4.0)
+                # Then calculate the distance travelled
+                dx, dy = calc_distance(theta, command.magnitude, distance_mod)
+                x += dx
+                y += dy
+                # then simulate rotating at a 45 degree angle
+                theta = calc_angle(theta, angle_mod, math.pi/4.0)
+            elif translational:
+                # ex: go backward 2 meters
+                dx, dy = calc_distance(theta, command.magnitude)
+                x += dx
+                y += dy
+            elif rotational:
+                # ex: turn right 69 degrees
+                angle_mod = -1 if command.r else 1
+                theta = calc_angle(theta, angle_mod, command.magnitude)
+        
+        initial_rotation = math.atan2(y, x)
+        final_magnitude = math.hypot(x,y)
+        diff = theta - initial_rotation
+        if diff > math.pi:
+            diff = diff - 360
+        final_rotation = diff
+
+        def isclose(a, b, rel_tol=1e-09, abs_tol=0.0):
+            # Check if floats is close enough to 0 (see https://stackoverflow.com/a/33024979)
+            return abs(a-b) <= max(rel_tol * max(abs(a), abs(b)), abs_tol)
+        
+        # Add commands to list - as long as it is != 0 magnitude
+        cmd_list = []
+        if not isclose(0.0, initial_rotation):
+            # Rotate first
+            r = initial_rotation < 0
+            l = initial_rotation > 0
+            cmd_list.append(
+                Command(r=r, l=l, f=False, b=False, dist=abs(initial_rotation)))
+        if not isclose(0.0, final_magnitude):
+            # Go forward in straight line
+            cmd_list.append(
+                Command(r=False, l=False, f=True, b=False, dist=final_magnitude))
+        if not isclose(0.0, final_rotation):
+            # Rotate at end (if needed)
+            r = final_rotation < 0
+            l = final_rotation > 0
+            cmd_list.append(
+                Command(r=r, l=l, f=False, b=False, dist=abs(final_rotation)))
+        return cmd_list
+
     def __cmd_received_cb(self, command):
         """ Called by self.parser whenever a command is received 
 
@@ -89,6 +162,7 @@ class CommandQueue:
                     if self.__has_cmds():
                         # We have commands, so signal that we're ready to start running our commands
                         wait_for_more_cmds = False
+                        self.condense_commands(list(self.cmd_queue))
                         self.__notify_commands_ready()
                     else:
                         # No commands were added yet, wait for more
