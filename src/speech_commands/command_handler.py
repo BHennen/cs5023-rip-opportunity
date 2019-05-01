@@ -8,12 +8,17 @@ from command_parser import CommandParser, Command, Distance
 # Twist object used for pushing to nav node
 try:
     # For testing purposes without ros installed
+    import rospy
     from geometry_msgs.msg import Twist
     from tf.transformations import euler_from_quaternion
 except ImportError as e:
     print("ImportError: {}".format(e))
     class Twist():
         pass
+    class rospy():
+        @staticmethod
+        def loginfo(string):
+            print(string)
 
 _debug = True
 
@@ -204,18 +209,18 @@ class CommandQueue:
                 elif 'switch' in command.command_str:
                     # Toggle efficient mode
                     self.efficient_mode = not self.efficient_mode
-                    print("Command Queue: Efficient mode is now {}!".format('on' if self.efficient_mode else 'off'))
+                    rospy.loginfo("Command Queue: Efficient mode is now {}!".format('on' if self.efficient_mode else 'off'))
                 elif 'forget' in command.command_str:
                     # remove previous command
                     if self.cmd_queue:
                         removed_cmd = self.cmd_queue.pop()
-                        print("Command Queue: Removed previous command:{}".format(
+                        rospy.loginfo("Command Queue: Removed previous command:{}".format(
                             removed_cmd))
                 else:
                     # Received normal command, add it to the queue
                     self.__add_cmd_to_queue(command)
                     wait_for_more_cmds = True
-                    print("Command Queue: Removed previous command:{}".format(
+                    rospy.loginfo("Command Queue: Removed previous command:{}".format(
                         removed_cmd))
 
         # Signal the callback for the received command and see it they want to continue for more cmds
@@ -223,7 +228,7 @@ class CommandQueue:
         # If they return None then we use our method of waiting for more commands
         wait_for_more_cmds = ext_wait_for_more_cmds if ext_wait_for_more_cmds is not None else wait_for_more_cmds
         if _debug:
-            print(
+            rospy.loginfo(
                 "CommandQueue- Waiting for more commands: {}".format(wait_for_more_cmds))
         return wait_for_more_cmds
 
@@ -258,12 +263,12 @@ class CommandQueue:
 
     def __add_cmd_to_queue(self, command):
         if _debug:
-            print("CommandQueue- Added to queue: {}".format(command))
+            rospy.loginfo("CommandQueue- Added to queue: {}".format(command))
         self.cmd_queue.append(command)
 
     def __continue_cmd(self):
         if _debug:
-            print("CommandQueue- Continuing command: {}".format(self.commhandler.command))
+            rospy.loginfo("CommandQueue- Continuing command: {}".format(self.commhandler.command))
         self.commhandler.continue_command(self.__done_cb, self.__set_vel_cb)
 
     def __start_next_cmd(self):
@@ -273,7 +278,7 @@ class CommandQueue:
             self.running_cmd = True
             self.running_cmds = True
             if _debug:
-                print("CommandQueue- Starting command: {}".format(next_cmd))
+                rospy.loginfo("CommandQueue- Starting command: {}".format(next_cmd))
             self.commhandler.start_command(next_cmd)
         else:
             # TODO what should happen if trying to start command with none left in queue
@@ -312,7 +317,7 @@ class CommandHandler:
         linear_velocity: float - linear speed to perform the command
         angular_velocity: float - angular speed to perform the command        
         """
-        print("Starting execution of command "+str(command))
+        rospy.loginfo("Starting execution of command "+str(command))
         # Reset pose and accumulators
         self.command = command
         self.prev_pose = None
@@ -404,7 +409,7 @@ class CommandHandler:
             dist = math.hypot(dx, dy)
             self.current_magnitude += dist
             if _debug:
-                print("__update_magnitude - translational: dx:{}, dy:{}, dist: {}, self.current_magnitude: {}".format(
+                rospy.loginfo("__update_magnitude: translational: dx:{}, dy:{}, dist: {}, self.current_magnitude: {}".format(
                     dx, dy, dist, self.current_magnitude))
         else:
             # calculate rotational distance
@@ -422,7 +427,7 @@ class CommandHandler:
             angle = (2*math.pi)-diff if diff > math.pi else diff
             self.current_magnitude += angle
             if _debug:
-                print("__update_magnitude - rotational: angle:{}, self.current_magnitude:{}".format(
+                rospy.loginfo("__update_magnitude: rotational: angle:{}, self.current_magnitude:{}".format(
                     angle, self.current_magnitude))
 
         # Set previous pose
@@ -435,7 +440,7 @@ if __name__ == "__main__":
     if len(sys.argv) > 1:
         test = sys.argv[1]
     else:
-        print("Usage: python command_handler.py [condense]")
+        rospy.loginfo("Usage: python command_handler.py [condense]")
         test = 'condense'
 
     def commands_ready_cb():
@@ -500,11 +505,11 @@ if __name__ == "__main__":
                                 dist=ninety_deg))
 
         def print_commands(cmd_list):
-            print("*"*25)
+            rospy.loginfo("*"*25)
             if not cmd_list:
-                print("No commands!")
+                rospy.loginfo("No commands!")
             for cmd in cmd_list:
-                print(cmd)
+                rospy.loginfo(cmd)
 
         # Triangle
         # Test full triangle
