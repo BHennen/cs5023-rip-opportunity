@@ -31,6 +31,7 @@ class CommandQueue:
         # Bools representing our state.
         self.running_cmd = False  # Running a single command. True while a command is running
         self.running_cmds = False  # Running multiple commands. True while started queue
+        self.efficient_mode = False # True results in commands being condensed before executed
 
     def start_listening(self):
         """ Start listening for keywords and commands """
@@ -131,15 +132,15 @@ class CommandQueue:
     def __cmd_received_cb(self, command):
         """ Called by self.parser whenever a command is received 
 
+        TODO: Check for mode toggle during execution of command and change behavior mid-sequence
+        TODO: fragile to changes in the grammar; start command requires string update
         TODO: interactive feedback loop
-        TODO: commands with no termination magnitude (stop, go forward, turn right, etc.)
-              will never end during execution of queue
         """
         wait_for_more_cmds = False
         # Check if we're currently in middle of command(s)
         if self.running_cmds:
             # We're running commands and got interrupted...
-            if not command or 'begin' in command.command_str:
+            if not command or 'start' in command.command_str:
                 # Received invalid command, ignore it for now and continue with our current queue
                 wait_for_more_cmds = False
             else:
@@ -157,16 +158,32 @@ class CommandQueue:
                 wait_for_more_cmds = True
             else:
                 # Received valid command
-                if 'begin' in command.command_str:
+                if 'start' in command.command_str:
                     # Received command to tell us to start with current queue
                     if self.__has_cmds():
-                        # We have commands, so signal that we're ready to start running our commands
-                        wait_for_more_cmds = False
-                        self.condense_commands(list(self.cmd_queue))
-                        self.__notify_commands_ready()
+                        # We have commands
+                        notify = True
+                        if self.efficient_mode:
+                            # Condense commands into a few steps
+                            condensed_cmds = self._condense_commands(self.cmd_queue)
+                            self.cmd_queue.clear()
+                            if not condensed_cmds:
+                                # _condense_commands resulted in the robot obtaining the starting position
+                                # Do nothing
+                                wait_for_more_cmds = True
+                                notify = False
+                            else:
+                                wait_for_more_cmds = False
+                                self.cmd_queue.extend(condensed_cmds)
+                        if notify:
+                            self.__notify_commands_ready()
                     else:
                         # No commands were added yet, wait for more
                         wait_for_more_cmds = True
+                elif 'toggle mode' in command.command_str:
+                    # Toggle efficient mode
+                    self.efficient_mode = not self.efficient_mode
+                    print("Command Queue: Efficient mode is now {}!".format('on' if self.efficient_mode else 'off'))
                 else:
                     # Received normal command, add it to the queue
                     self.__add_cmd_to_queue(command)

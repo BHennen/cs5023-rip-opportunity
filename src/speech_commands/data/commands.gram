@@ -25,7 +25,8 @@ grammar commands;
 public <commands> = [[<garbage>] [<robocmd>] [<garbage>]];
 
 <robocmd> = (/1/ go <direction> <distance>) |
-/1/ start command |
+(/1/ start command) |
+(/1/ toggle mode) |
 (/1/ turn <leftright> <turnamount>);
 
 <direction> = <updown> | (<updown> and <leftright>);
