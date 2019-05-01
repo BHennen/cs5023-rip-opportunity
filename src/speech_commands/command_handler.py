@@ -163,6 +163,7 @@ class CommandQueue:
             if not command or 'start' in command.command_str:
                 # Received invalid command, ignore it for now and continue with our current queue
                 wait_for_more_cmds = False
+                self.__notify_commands_ready()
             else:
                 # Received valid command, clear current queue
                 self.cmd_queue.clear()
@@ -200,7 +201,7 @@ class CommandQueue:
                     else:
                         # No commands were added yet, wait for more
                         wait_for_more_cmds = True
-                elif 'toggle mode' in command.command_str:
+                elif 'switch' in command.command_str:
                     # Toggle efficient mode
                     self.efficient_mode = not self.efficient_mode
                     print("Command Queue: Efficient mode is now {}!".format('on' if self.efficient_mode else 'off'))
