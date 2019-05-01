@@ -304,8 +304,6 @@ class CommandHandler:
         self.current_pose = None
         self.current_magnitude = 0
         self.goal_magnitude = None
-        self.prev_yaw = None
-        self.current_yaw = None
         self.linear_velocity = linear_velocity
         self.angular_velocity = angular_velocity
         self.vel_msg = Twist()
@@ -412,18 +410,19 @@ class CommandHandler:
                 rospy.loginfo("__update_magnitude: translational: dx:{}, dy:{}, dist: {}, self.current_magnitude: {}".format(
                     dx, dy, dist, self.current_magnitude))
         else:
-            # calculate rotational distance
-            self.prev_yaw = self.current_yaw
+            # calculate yaws
+            prev_quat = self.prev_pose.orientation
+            (prev_roll, prev_pitch, prev_yaw) = euler_from_quaternion(
+                [prev_quat.x, prev_quat.y, prev_quat.z, prev_quat.w])
             quat = cur_pose.orientation
-            (roll, pitch, yaw) = euler_from_quaternion(
+            (cur_roll, cur_pitch, cur_yaw) = euler_from_quaternion(
                 [quat.x, quat.y, quat.z, quat.w])
-            self.current_yaw = yaw
-            if self.prev_yaw is None:
-                # first iteration with no previous, no need to calculate
-                return
+            if _debug:
+                rospy.loginfo("__update_magnitude: prev_yaw:{}, cur_yaw:{}".format(
+                    prev_yaw, cur_yaw))
 
             # Accumulate angle traveled
-            diff = abs(self.current_yaw - self.prev_yaw)
+            diff = abs(cur_yaw - prev_yaw)
             angle = (2*math.pi)-diff if diff > math.pi else diff
             self.current_magnitude += angle
             if _debug:
