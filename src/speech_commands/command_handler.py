@@ -2,12 +2,18 @@
 import math
 from collections import deque
 
-from command_parser import CommandParser, Command
+from command_parser import CommandParser, Command, Distance
 
 # Ros packages
 # Twist object used for pushing to nav node
-from geometry_msgs.msg import Twist
-from tf.transformations import euler_from_quaternion
+try:
+    # For testing purposes without ros installed
+    from geometry_msgs.msg import Twist
+    from tf.transformations import euler_from_quaternion
+except ImportError as e:
+    print("ImportError: {}".format(e))
+    class Twist():
+        pass
 
 _debug = True
 
@@ -62,8 +68,13 @@ class CommandQueue:
         y = 0
 
         def calc_angle(theta, angle_mod, magnitude):
+            # Add new angle to theta
             theta = theta + (angle_mod * magnitude)
-            theta = (theta % (2*math.pi)) * angle_mod
+            # Store resulting sign
+            sign = math.copysign(1, theta)
+            # Keeping theta < 360
+            theta = (abs(theta) % (2*math.pi)) * sign
+            # Keep theta >= 0
             if theta < 0:
                     theta = theta + 2*math.pi
             return theta
@@ -97,17 +108,26 @@ class CommandQueue:
                 # ex: turn right 69 degrees
                 angle_mod = -1 if command.r else 1
                 theta = calc_angle(theta, angle_mod, command.magnitude)
-        
-        initial_rotation = math.atan2(y, x)
-        final_magnitude = math.hypot(x,y)
-        diff = theta - initial_rotation
-        if diff > math.pi:
-            diff = diff - 360
-        final_rotation = diff
 
         def isclose(a, b, rel_tol=1e-09, abs_tol=0.0):
             # Check if floats is close enough to 0 (see https://stackoverflow.com/a/33024979)
             return abs(a-b) <= max(rel_tol * max(abs(a), abs(b)), abs_tol)
+
+        # Check if theta, x, or y are close to 0 to set them to 0
+        x = 0 if isclose(0.0, x, abs_tol=1e-5) else x
+        y = 0 if isclose(0.0, y, abs_tol=1e-5) else y
+        theta = 0 if isclose(0.0, theta, abs_tol=1e-5) else theta
+
+        initial_rotation = math.atan2(y, x)
+        final_magnitude = math.hypot(x,y)
+        init_rot = initial_rotation + 2*math.pi if initial_rotation < 0 else initial_rotation
+        diff = theta - init_rot
+        sign = math.copysign(1, diff)
+        diff = (abs(diff) % (2*math.pi)) * sign
+        if diff > math.pi:
+            diff = diff - (sign * 2 * math.pi)
+        final_rotation = diff
+
         
         # Add commands to list - as long as it is != 0 magnitude
         cmd_list = []
@@ -116,17 +136,17 @@ class CommandQueue:
             r = initial_rotation < 0
             l = initial_rotation > 0
             cmd_list.append(
-                Command(r=r, l=l, f=False, b=False, dist=abs(initial_rotation)))
+                Command(r=r, l=l, f=False, b=False, dist=Distance(abs(initial_rotation), 'radians')))
         if not isclose(0.0, final_magnitude):
             # Go forward in straight line
             cmd_list.append(
-                Command(r=False, l=False, f=True, b=False, dist=final_magnitude))
+                Command(r=False, l=False, f=True, b=False, dist=Distance(final_magnitude, 'meters')))
         if not isclose(0.0, final_rotation):
             # Rotate at end (if needed)
             r = final_rotation < 0
             l = final_rotation > 0
             cmd_list.append(
-                Command(r=r, l=l, f=False, b=False, dist=abs(final_rotation)))
+                Command(r=r, l=l, f=False, b=False, dist=Distance(abs(final_rotation), 'meters')))
         return cmd_list
 
     def __cmd_received_cb(self, command):
@@ -398,3 +418,117 @@ class CommandHandler:
 
         # Set previous pose
         self.prev_pose = cur_pose
+        
+
+if __name__ == "__main__":
+    import sys
+
+    if len(sys.argv) > 1:
+        test = sys.argv[1]
+    else:
+        print("Usage: python command_handler.py [condense]")
+        test = 'condense'
+
+    def commands_ready_cb():
+        raise NotImplementedError
+
+    def update_velocity_cb():
+        raise NotImplementedError
+
+    def command_done_cb():
+        raise NotImplementedError
+
+    def command_received_cb():
+        raise NotImplementedError
+
+    def keyword_received_cb():
+        raise NotImplementedError
+
+
+    commqueue = CommandQueue(1, 0.3,
+                             commands_ready_cb, update_velocity_cb, command_done_cb, command_received_cb, keyword_received_cb)
+
+    if test == 'condense':
+        from command_parser import Distance
+        condensed = []
+        # Full list should end up back at same pos and orientation
+        # Equilateral Triangles command list
+        triangle_list = []
+        two_meters = Distance(2.0, "meter")
+        one20_deg = Distance(120, "degrees")
+        triangle_list.append(Command(f=True, b=False, r=False, l=False,
+                                dist=two_meters))
+        triangle_list.append(Command(f=False, b=False, r=True, l=False,
+                                dist=one20_deg))
+        triangle_list.append(Command(f=True, b=False, r=False, l=False, 
+                                dist=two_meters))
+        triangle_list.append(Command(f=False, b=False, r=True, l=False, 
+                                dist=one20_deg))
+        triangle_list.append(Command(f=True, b=False, r=False, l=False, 
+                                dist=two_meters))
+        triangle_list.append(Command(f=False, b=False, r=True, l=False,
+                                dist=one20_deg))
+
+        # Square command list
+        square_list = []
+        two_meters = Distance(2.0, "meter")
+        ninety_deg = Distance(90, "degrees")
+        square_list.append(Command(f=True, b=False, r=False, l=False,
+                                dist=two_meters))
+        square_list.append(Command(f=False, b=False, r=False, l=True,
+                                dist=ninety_deg))
+        square_list.append(Command(f=True, b=False, r=False, l=False,
+                                dist=two_meters))
+        square_list.append(Command(f=False, b=False, r=False, l=True,
+                                dist=ninety_deg))
+        square_list.append(Command(f=True, b=False, r=False, l=False,
+                                dist=two_meters))
+        square_list.append(Command(f=False, b=False, r=False, l=True,
+                                dist=ninety_deg))
+        square_list.append(Command(f=True, b=False, r=False, l=False,
+                                dist=two_meters))
+        square_list.append(Command(f=False, b=False, r=False, l=True,
+                                dist=ninety_deg))
+
+        def print_commands(cmd_list):
+            print("*"*25)
+            if not cmd_list:
+                print("No commands!")
+            for cmd in cmd_list:
+                print(cmd)
+
+        # Triangle
+        # Test full triangle
+        condensed = commqueue._condense_commands(triangle_list)
+        assert len(condensed) == 0, "Equilateral triangle - expecting empty list, got {}".format(condensed)
+        print_commands(condensed)
+
+        # Test without reorienting at end
+        condensed = commqueue._condense_commands(triangle_list[:-1])
+        assert len(condensed) == 1, "Equilateral triangle - expecting one rotation, got {}".format(condensed)
+        print_commands(condensed)
+
+        # Test without doing last line
+        condensed = commqueue._condense_commands(triangle_list[:-2])
+        assert len(
+            condensed) == 3, "Equilateral triangle - expecting three commands, got {}".format(condensed)
+        print_commands(condensed)
+
+        # Square
+        # Test full square
+        condensed = commqueue._condense_commands(square_list)
+        assert len(
+            condensed) == 0, "Square - expecting empty list, got {}".format(condensed)
+        print_commands(condensed)
+
+        # Test without reorienting at end
+        condensed = commqueue._condense_commands(square_list[:-1])
+        assert len(
+            condensed) == 1, "Square - expecting one rotation, got {}".format(condensed)
+        print_commands(condensed)
+
+        # Test without doing last 2 lines
+        condensed = commqueue._condense_commands(square_list[:4])
+        assert len(
+            condensed) == 3, "Square - expecting three rotation, got {}".format(condensed)
+        print_commands(condensed)
