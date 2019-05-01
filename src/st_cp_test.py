@@ -9,6 +9,7 @@ import math
 
 # Ros libs
 import rospy
+from tf.transformations import euler_from_quaternion
 
 # Twist object used for pushing to nav node
 from geometry_msgs.msg import Twist
@@ -120,10 +121,13 @@ def handle_that_odom(odom):
     global prev_pos, command_inhibitor, commqueue
 
     if command_inhibitor:
-        # if debug:
-        #     rospy.loginfo(odom.pose)
-        # update pose\ only if we are executing a command
         pose = odom.pose.pose
+        if debug:
+            quat = pose.orientation
+            (roll, pitch, yaw) = euler_from_quaternion(
+                [quat.x, quat.y, quat.z, quat.w])
+            rospy.loginfo("handle_that_odom: yaw={}".format(yaw))
+        # update pose\ only if we are executing a command
         commqueue.update_pose(pose)
 
 
