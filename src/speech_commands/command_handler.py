@@ -131,17 +131,17 @@ class CommandQueue:
         
         # Add commands to list - as long as it is != 0 magnitude
         cmd_list = []
-        if not isclose(0.0, initial_rotation):
+        if not isclose(0.0, initial_rotation, abs_tol=1e-5):
             # Rotate first
             r = initial_rotation < 0
             l = initial_rotation > 0
             cmd_list.append(
                 Command(r=r, l=l, f=False, b=False, dist=Distance(abs(initial_rotation), 'radians')))
-        if not isclose(0.0, final_magnitude):
+        if not isclose(0.0, final_magnitude, abs_tol=1e-5):
             # Go forward in straight line
             cmd_list.append(
                 Command(r=False, l=False, f=True, b=False, dist=Distance(final_magnitude, 'meters')))
-        if not isclose(0.0, final_rotation):
+        if not isclose(0.0, final_rotation, abs_tol=1e-5):
             # Rotate at end (if needed)
             r = final_rotation < 0
             l = final_rotation > 0
@@ -208,11 +208,15 @@ class CommandQueue:
                 elif 'forget' in command.command_str:
                     # remove previous command
                     if self.cmd_queue:
-                        self.cmd_queue.pop()
+                        removed_cmd = self.cmd_queue.pop()
+                        print("Command Queue: Removed previous command:{}".format(
+                            removed_cmd))
                 else:
                     # Received normal command, add it to the queue
                     self.__add_cmd_to_queue(command)
                     wait_for_more_cmds = True
+                    print("Command Queue: Removed previous command:{}".format(
+                        removed_cmd))
 
         # Signal the callback for the received command and see it they want to continue for more cmds
         ext_wait_for_more_cmds = self.ext_cmd_cb(command)
