@@ -205,6 +205,10 @@ class CommandQueue:
                     # Toggle efficient mode
                     self.efficient_mode = not self.efficient_mode
                     print("Command Queue: Efficient mode is now {}!".format('on' if self.efficient_mode else 'off'))
+                elif 'forget' in command.command_str:
+                    # remove previous command
+                    if self.cmd_queue:
+                        self.cmd_queue.pop()
                 else:
                     # Received normal command, add it to the queue
                     self.__add_cmd_to_queue(command)
