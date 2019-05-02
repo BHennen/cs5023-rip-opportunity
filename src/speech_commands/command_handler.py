@@ -210,12 +210,14 @@ class CommandQueue:
                     # Toggle efficient mode
                     self.efficient_mode = not self.efficient_mode
                     rospy.loginfo("Command Queue: Efficient mode is now {}!".format('on' if self.efficient_mode else 'off'))
+                    wait_for_more_cmds = True
                 elif 'forget' in command.command_str:
                     # remove previous command
                     if self.cmd_queue:
                         removed_cmd = self.cmd_queue.pop()
                         rospy.loginfo("Command Queue: Removed previous command:{}".format(
                             removed_cmd))
+                    wait_for_more_cmds = True
                 else:
                     # Received normal command, add it to the queue
                     self.__add_cmd_to_queue(command)
