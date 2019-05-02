@@ -220,8 +220,6 @@ class CommandQueue:
                     # Received normal command, add it to the queue
                     self.__add_cmd_to_queue(command)
                     wait_for_more_cmds = True
-                    rospy.loginfo("Command Queue: Removed previous command:{}".format(
-                        removed_cmd))
 
         # Signal the callback for the received command and see it they want to continue for more cmds
         ext_wait_for_more_cmds = self.ext_cmd_cb(command)
@@ -422,12 +420,13 @@ class CommandHandler:
                     prev_yaw, cur_yaw))
 
             # Accumulate angle traveled
-            diff = abs(cur_yaw - prev_yaw)
-            angle = (2*math.pi)-diff if diff > math.pi else diff
-            self.current_magnitude += angle
+            increment = abs(cur_yaw - prev_yaw)
+            if increment > math.pi:
+                increment = 360 % increment
+            self.current_magnitude += increment
             if _debug:
-                rospy.loginfo("__update_magnitude: rotational: angle:{}, self.current_magnitude:{}".format(
-                    angle, self.current_magnitude))
+                rospy.loginfo("__update_magnitude: rotational: increment:{}, self.current_magnitude:{}".format(
+                    increment, self.current_magnitude))
 
         # Set previous pose
         self.prev_pose = cur_pose
