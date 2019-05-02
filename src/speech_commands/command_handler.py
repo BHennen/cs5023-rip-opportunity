@@ -27,7 +27,7 @@ class CommandQueue:
     def __init__(self, linear_velocity, angular_velocity,
                  commands_ready_cb, update_velocity_cb, command_done_cb, command_received_cb, keyword_received_cb=None,
                  grammar=None, keywords=None):
-        self.commhandler = CommandHandler(linear_velocity, angular_velocity)
+        self.commhandler = CommandHandler(done_cb=self.__done_cb, linear_velocity=linear_velocity, angular_velocity=angular_velocity)
         self.parser = CommandParser(
             self.__cmd_received_cb,
             self.__kwd_received_cb,
@@ -267,7 +267,7 @@ class CommandQueue:
     def __continue_cmd(self):
         if _debug:
             rospy.loginfo("CommandQueue- Continuing command: {}".format(self.commhandler.command))
-        self.commhandler.continue_command(self.__done_cb, self.__set_vel_cb)
+        self.commhandler.continue_command(self.__set_vel_cb)
 
     def __start_next_cmd(self):
         # Gets the next command and starts execution of it
@@ -296,7 +296,7 @@ class CommandQueue:
 
 
 class CommandHandler:
-    def __init__(self, linear_velocity, angular_velocity):
+    def __init__(self, linear_velocity, angular_velocity, done_cb):
         self.command = None
         self.prev_pose = None
         self.current_pose = None
@@ -304,6 +304,8 @@ class CommandHandler:
         self.goal_magnitude = None
         self.linear_velocity = linear_velocity
         self.angular_velocity = angular_velocity
+        # done_cb: function - Callback function which is called when the command is done. No parameters
+        self.done_cb = done_cb
         self.vel_msg = Twist()
 
     def start_command(self, command):
@@ -325,20 +327,11 @@ class CommandHandler:
         self.has_odom_data = False
         self.__update_vel_msg()
 
-    def continue_command(self, done_cb, set_velocity_cb):
-        """ Checks distance from origin position and calls done_cb when goal reached (if goal set)
-        set_velocity_cb is called with Twist object with desired velocities of the command. 
+    def continue_command(self, set_velocity_cb):
+        """set_velocity_cb is called with Twist object with desired velocities of the command. 
 
-        done_cb: function - Callback function which is called when the command is done. No parameters
         set_velocity_cb: function - Callback function which is passed a Twist object to perform the command.
         """
-        if self.goal_magnitude:
-            self.__update_magnitude()
-            if self.current_magnitude >= self.goal_magnitude:
-                # Goal reached, send done signal and return to not set any velocity
-                done_cb()
-                return
-
         set_velocity_cb(self.vel_msg)
 
     def change_velocities(self, linear_velocity, angular_velocity):
@@ -351,8 +344,13 @@ class CommandHandler:
         """
         Called by async odom handler
         """
-        self.current_pose = pose
-        self.has_odom_data = True
+        if self.goal_magnitude:
+            self.current_pose = pose
+            self.has_odom_data = True
+            self.__update_magnitude()
+            if self.current_magnitude >= self.goal_magnitude:
+                # Goal reached, send done signal and return to not set any velocity
+                self.done_cb()
 
     def __update_vel_msg(self):
         # Set translational
@@ -422,7 +420,7 @@ class CommandHandler:
             # Accumulate angle traveled
             increment = abs(cur_yaw - prev_yaw)
             if increment > math.pi:
-                increment = 360 % increment
+                increment = (2*math.pi) % increment
             self.current_magnitude += increment
             if _debug:
                 rospy.loginfo("__update_magnitude: rotational: increment:{}, self.current_magnitude:{}".format(
