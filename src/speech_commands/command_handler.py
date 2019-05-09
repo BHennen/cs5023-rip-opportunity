@@ -106,7 +106,8 @@ class CommandQueue:
                 theta = calc_angle(theta, angle_mod, math.pi/4.0)
             elif translational:
                 # ex: go backward 2 meters
-                dx, dy = calc_distance(theta, command.magnitude)
+                distance_mod = -1 if command.b else 1
+                dx, dy = calc_distance(theta, command.magnitude, distance_mod)
                 x += dx
                 y += dy
             elif rotational:
@@ -502,6 +503,15 @@ if __name__ == "__main__":
         square_list.append(Command(f=False, b=False, r=False, l=True,
                                 dist=ninety_deg))
 
+        # Backward then right then backward
+        back_list = []
+        back_list.append(Command(f=False, b=True, r=False, l=False,
+                                   dist=two_meters))
+        back_list.append(Command(f=False, b=False, r=True, l=False,
+                                   dist=ninety_deg))
+        back_list.append(Command(f=False, b=True, r=False, l=False,
+                                   dist=two_meters))
+
         def print_commands(cmd_list):
             rospy.loginfo("*"*25)
             if not cmd_list:
@@ -543,4 +553,9 @@ if __name__ == "__main__":
         condensed = commqueue._condense_commands(square_list[:4])
         assert len(
             condensed) == 3, "Square - expecting three rotation, got {}".format(condensed)
+        print_commands(condensed)
+
+
+        # Backward
+        condensed = commqueue._condense_commands(back_list)
         print_commands(condensed)
