@@ -67,7 +67,7 @@ class Command:
             return 0
 
     def __repr__(self):
-        return '(f, b, l, r) = ({0}, {1}, {2}, {3}); magnitude = {4}'.format(self.f, self.b, self.l, self.r, self.magnitude)
+        return '(f:{}, b:{}, l:{}, r:{}); magnitude:{}; str:"{}"'.format(self.f, self.b, self.l, self.r, self.magnitude, self.command_str)
 
     __str__ = __repr__
 
@@ -101,9 +101,9 @@ class CommandParser:
         f, b, l, r, dist = (False, False, False, False, None)
         # 1. Separate into words
         words = command_str.split(" ")
-        # 2. Check if stop or begin phrase
-        if 'stop' in words or 'begin' in words:
-            pass  # use default values set above
+        # 2. Check if movement command
+        if 'go' not in words and 'turn' not in words:
+            pass  # other unrecognized command; use default values set above
         else:
             # check & set directions independently
             # Also record index of rightmost direction
